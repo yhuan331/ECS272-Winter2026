@@ -1,33 +1,27 @@
-<script lang="ts">
-
+<script setup lang="ts">
+import Example from './components/Example.vue'
 import Notes from './components/Notes.vue'
 import NotesWithStore from './components/NotesWithStore.vue'
-import Example from './components/Example.vue'
 
-export default {
-  components: {
-    Notes,
-    Example,
-    NotesWithStore,
-  }
-}
+// Local components are available in the template automatically with `script setup`.
 </script>
 
-<!--This is using the grid component from Vuetify to do layout design-->
+<!-- Using Vuetify components (Vuetify should be registered in the app entry). -->
 <template>
-  <v-container id="main-container" class="d-flex flex-column flex-nowrap" fluid>
-    <v-row no-gutters>
-      <v-col cols="5">
+  <VContainer id="main-container" class="d-flex flex-column" fluid>
+    <VRow class="pa-0">
+      <VCol cols="5" class="pa-0">
         <Example />
-      </v-col>
-    </v-row>
-    <v-row no-gutters>
-      <v-col>
-        <Notes msg="This is a message sent from App.vue as component property"/>
+      </VCol>
+    </VRow>
+
+    <VRow class="pa-0">
+      <VCol class="pa-0">
+        <Notes msg="This is a message sent from App.vue as component property" />
         <!-- <NotesWithStore msg="This is a message sent from App.vue as component property"/> -->
-      </v-col>
-    </v-row>
-  </v-container>
+      </VCol>
+    </VRow>
+  </VContainer>
 </template>
 
 <style scoped>

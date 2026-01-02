@@ -20,7 +20,7 @@ export default function Example() {
   const margin: Margin = { top: 40, right: 20, bottom: 80, left: 60 };
   const onResize = useDebounceCallback((size: ComponentSize) => setSize(size), 200)
 
-  useResizeObserver({ ref: barRef, onResize });
+  useResizeObserver({ ref: barRef as React.RefObject<HTMLDivElement>, onResize });
   
   useEffect(() => {
     // For reading json file

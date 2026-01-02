@@ -2,6 +2,8 @@ import Example from './components/Example'
 import Notes from './components/Notes'
 import { NotesWithReducer, CountProvider } from './components/NotesWithReducer';
 import Grid from '@mui/material/Grid';
+import Stack from '@mui/material/Stack';
+import Box from '@mui/material/Box';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { grey } from '@mui/material/colors';
 
@@ -21,25 +23,27 @@ const theme = createTheme({
 
 function Layout() {
   return (
-    <Grid container spacing={1} direction='column' id="main-container">
-      <Grid container item xs={6} sm={6} md={6} lg={6}>
-        <Grid item xs={5} sm={5} md={5} lg={5}>
-          <Example />
+    <Box id='main-container'>
+      <Stack spacing={1} sx={{ height: '100%' }}>
+        {/* Top row: Example component taking about 60% width */}
+        <Grid container spacing={1} sx={{ height: '60%' }}>
+          <Grid size={7}>
+            <Example />
+          </Grid>
+          {/* flexible spacer to take remaining space */}
+          <Grid size="grow" />
         </Grid>
-        <Grid item xs sm md lg/>
-      </Grid>
-      <Grid item xs sm md lg>
-        {
-        <Notes msg={"This is a message sent from App.tsx as component prop"} />
-        }
-        { // Uncomment the following to see how state management works in React.
-        /*
-          <CountProvider>
-            <NotesWithReducer msg={"This is a message sent from App.tsx as component prop"} />
-          </CountProvider>*/
-        }
-      </Grid>
-    </Grid>
+        {/* Bottom row: Notes component taking full width */}
+        <Grid size={12} sx={{ height: '40%' }}>
+          <Notes msg={"This is a message sent from App.tsx as component prop"} />
+          { /* Uncomment the following to see how state management works in React.
+            <CountProvider>
+              <NotesWithReducer msg={"This is a message sent from App.tsx as component prop"} />
+            </CountProvider>
+          */ }
+        </Grid>
+      </Stack>
+    </Box>
   )
 }
 

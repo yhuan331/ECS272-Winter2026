@@ -65,7 +65,7 @@ Install additional packages for your needs
   npm install <package-name>
 ```
 
-\*These templates have been tested with Node.js v19.3.0.
+\*These templates have been tested with Node.js v25.2.1.
 
 
 # Requirements
