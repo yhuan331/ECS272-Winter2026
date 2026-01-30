@@ -37,7 +37,7 @@ export default function App() {
 
 
   /* =========================================================
-     VIEW 1 — OVERVIEW: Popularity vs Track Duration
+     VIEW 1 — Popularity vs Track Duration
      ========================================================= */
   useEffect(() => {
     if (!data.length || !view1Ref.current) return;
@@ -49,14 +49,10 @@ export default function App() {
     const height = 260;
     const margin = { top: 40, right: 30, bottom: 50, left: 60 };
 
-    // const x = d3.scaleLinear()
-    //   .domain(
-    //     d3.extent(data, d => d.track_duration_ms / 60000) as [number, number]
-    //   )
-    //   .range([margin.left, width - margin.right]);
+ 
 
     const x = d3.scaleLinear()
-  .domain([0, 7])                 // focus on typical track lengths
+  .domain([0, 7])              
   .range([margin.left, width - margin.right])
   .clamp(true);
 
@@ -107,14 +103,14 @@ export default function App() {
       .attr("y", 20)
       .attr("text-anchor", "middle")
       .attr("class", "title")
-      .text("Popularity vs Track Duration (Overview)");
+      .text("Track Duration vs Popularity");
 
     svg.append("text")
       .attr("x", width / 2)
       .attr("y", height - 10)
       .attr("text-anchor", "middle")
       .attr("font-size", 11)
-      .text("Song/Track Duration (minutes)");
+      .text("Track Duration (minutes)");
 
     svg.append("text")
       .attr("transform", "rotate(-90)")
@@ -134,7 +130,7 @@ export default function App() {
     const svg = d3.select(view2Ref.current);
     svg.selectAll("*").remove();
 
-    const width = 450;
+    const width = 400;
     const height = 320;
     const margin = { top: 40, right: 40, bottom: 40, left: 150 };
 
@@ -232,173 +228,29 @@ svg.append("text")
 // /* =========================================================
 //    VIEW 3 — ADVANCED: Multivariate Structure (Parallel Coords)
 //    ========================================================= */
-// useEffect(() => {
-//   if (!data.length || !view3Ref.current) return;
 
-//   const svg = d3.select(view3Ref.current);
-//   svg.selectAll("*").remove();
-
-//   const width = 450;
-//   const height = 320;
-//   const margin = { top: 50, right: 40, bottom: 40, left: 50 };
-
-//   // ---- Subsample to reduce clutter
-//   const sampled = d3.shuffle([...data]).slice(0, 700);
-
-//   // ---- Dimensions
-//   const dimensions = [
-//     {
-//       key: "track_popularity",
-//       label: "Track Popularity",
-//       scale: d3.scaleLinear().domain([0, 100])
-//     },
-//     {
-//       key: "artist_popularity",
-//       label: "Artist Popularity",
-//       scale: d3.scaleLinear().domain([0, 100])
-//     },
-//     {
-//       key: "artist_followers",
-//       label: "Artist Followers",
-//       scale: d3.scaleLog().domain([1e5, 2e8])
-//     }
-//   ];
-
-//   dimensions.forEach(d =>
-//     d.scale.range([height - margin.bottom, margin.top])
-//   );
-
-//   const x = d3.scalePoint()
-//     .domain(dimensions.map(d => d.key))
-//     .range([margin.left, width - margin.right]);
-
-//   const line = d3.line<[number, number]>();
-
-//   svg.attr("viewBox", `0 0 ${width} ${height}`);
-
-//   // ---- Popularity thresholds
-//   const p75 = d3.quantile(sampled.map(d => d.track_popularity).sort(d3.ascending), 0.75)!;
-//   const p90 = d3.quantile(sampled.map(d => d.track_popularity).sort(d3.ascending), 0.9)!;
-
-// const strokeColor = (d: SpotifyRow) => {
-//   if (d.track_popularity >= p90) return "#2166ac";   // muted dark blue
-//   if (d.track_popularity >= p75) return "#72a6c1";   // light blue
-//   return "#a8b6c7";                                  // light gray
-// };
-
-// const strokeOpacity = (d: SpotifyRow) =>
-//   d.track_popularity >= p90 ? 0.55 :
-//   d.track_popularity >= p75 ? 0.18 : 0.08;
-
-// const strokeWidth = (d: SpotifyRow) =>
-//   d.track_popularity >= p90 ? 1.4 :
-//   d.track_popularity >= p75 ? 0.9 : 0.5;
-
-
-//   // ---- Draw background + highlighted lines
-//   svg.append("g")
-//     .selectAll("path")
-//     .data(sampled)
-//     .enter()
-//     .append("path")
-//     .attr("d", d =>
-//       line(
-//         dimensions.map(dim => [
-//           x(dim.key)!,
-//           dim.scale(d[dim.key as keyof SpotifyRow]!)
-//         ])
-//       )!
-//     )
-//     .attr("fill", "none")
-//     .attr("stroke", d => strokeColor(d))
-//     .attr("stroke-opacity", d => strokeOpacity(d))
-//     .attr("stroke-width", d => strokeWidth(d));
-
-//   // ---- Median profile
-//   const medians = dimensions.map(dim =>
-//     d3.median(sampled, d => d[dim.key as keyof SpotifyRow]!)!
-//   );
-
-//   svg.append("path")
-//     .attr(
-//       "d",
-//       line(
-//         dimensions.map((dim, i) => [
-//           x(dim.key)!,
-//           dim.scale(medians[i])
-//         ])
-//       )!
-//     )
-//     .attr("fill", "none")
-//     .attr("stroke", "#d62728")
-//     .attr("stroke-width", 3);
-
-//   svg.append("text")
-//     .attr("x", x("artist_popularity")! + 6)
-//     .attr("y", dimensions[1].scale(medians[1]) - 8)
-//     .attr("fill", "#d62728")
-//     .attr("font-size", 11)
-//     .attr("font-weight", "bold")
-//     .text("Median track profile");
-
-//   // ---- Axes + labels
-//   dimensions.forEach(dim => {
-//     svg.append("g")
-//       .attr("transform", `translate(${x(dim.key)},0)`)
-//       .call(d3.axisLeft(dim.scale).ticks(4));
-
-//     svg.append("text")
-//       .attr("x", x(dim.key))
-//       .attr("y", height - 8)
-//       .attr("text-anchor", "middle")
-//       .attr("font-size", 11)
-//       .attr("font-weight", "bold")
-//       .text(dim.label);
-
-//     svg.append("text")
-//       .attr("x", x(dim.key))
-//       .attr("y", margin.top - 12)
-//       .attr("text-anchor", "middle")
-//       .attr("font-size", 10)
-//       .attr("fill", "#555")
-//       // .text("Higher ↑");
-//   });
-
-//   // ---- Title
-//   svg.append("text")
-//     .attr("x", width / 2)
-//     .attr("y", 22)
-//     .attr("text-anchor", "middle")
-//     .attr("class", "title")
-//     .text("Multivariate Structure of Track Success");
-
-// }, [data]);
 useEffect(() => {
   if (!data.length || !view3Ref.current) return;
 
   const svg = d3.select(view3Ref.current);
   svg.selectAll("*").remove();
 
-  const width = 450;
+  const width = 600;
   const height = 320;
   const margin = { top: 50, right: 120, bottom: 40, left: 50 };
 
   svg.attr("viewBox", `0 0 ${width} ${height}`);
 
-  /* ---------------------------
-     Extract PRIMARY genre only
-     --------------------------- */
+
   const getPrimaryGenre = (g: string) => {
-    if (!g) return "Other";
+    if (!g) return "other";
     return g
       .replace(/[\[\]']/g, "")
       .split(",")[0]
-      ?.trim() || "Other";
+      ?.trim() || "other";
   };
 
-  /* ---------------------------
-     Filter + Top 8 genres
-     --------------------------- */
+
   const filtered = data.filter(d => d.artist_followers > 1_000_000);
 
   const genreCounts = d3.rollups(
@@ -415,9 +267,6 @@ useEffect(() => {
     topGenres.includes(getPrimaryGenre(d.artist_genres))
   );
 
-  /* ---------------------------
-     Dimensions
-     --------------------------- */
   const dimensions = [
     {
       key: "track_popularity",
@@ -446,16 +295,27 @@ useEffect(() => {
 
   const line = d3.line<[number, number]>();
 
-  /* ---------------------------
-     Genre color scale
-     --------------------------- */
-  const color = d3.scaleOrdinal<string, string>()
-    .domain(topGenres)
-    .range(d3.schemeTableau10);
+const tableauNoRed = d3.schemeTableau10.filter(
+  c => c.toLowerCase() !== "#e15759"
+);
 
-  /* ---------------------------
-     Draw parallel coordinate lines
-     --------------------------- */
+const genreColors: Record<string, string> = {
+  other: "#aba9a9",      
+  pop: tableauNoRed[0],
+  rap: tableauNoRed[1],
+  "soft pop": tableauNoRed[2],
+  country: tableauNoRed[3],
+  "art pop": tableauNoRed[4],
+  edm: tableauNoRed[5],
+  grunge: tableauNoRed[6],
+  "k-pop": tableauNoRed[7],
+  soundtrack: "#5acba0"
+};
+
+const color = (genre: string) =>
+  genreColors[genre] ?? "#bdbdbd";
+
+
   svg.append("g")
     .selectAll("path")
     .data(sampled)
@@ -474,9 +334,7 @@ useEffect(() => {
     .attr("stroke-opacity", 0.15)
     .attr("stroke-width", 0.8);
 
-  /* ---------------------------
-     Average profile
-     --------------------------- */
+
   const averages = dimensions.map(dim =>
     d3.mean(sampled, d => d[dim.key as keyof SpotifyRow]!)!
   );
@@ -494,9 +352,7 @@ useEffect(() => {
     .attr("stroke", "#d62728")
     .attr("stroke-width", 3);
 
-/* ---------------------------
-   Legend — Average Profile
-   --------------------------- */
+
 const avgLegend = svg.append("g")
   .attr(
     "transform",
@@ -518,7 +374,7 @@ avgLegend.append("line")
   .attr("y1", 6)
   .attr("y2", 6)
   .attr("stroke", "#d62728")
-  .attr("stroke-width", 3);
+  .attr("stroke-width", 2);
 
 // Label
 avgLegend.append("text")
@@ -528,9 +384,6 @@ avgLegend.append("text")
   .text("Average track profile");
 
 
-  /* ---------------------------
-     Axes + labels
-     --------------------------- */
   dimensions.forEach(dim => {
     svg.append("g")
       .attr("transform", `translate(${x(dim.key)},0)`)
@@ -545,9 +398,7 @@ avgLegend.append("text")
       .text(dim.label);
   });
 
-  /* ---------------------------
-     Title
-     --------------------------- */
+
   svg.append("text")
     .attr("x", width / 2)
     .attr("y", 22)
@@ -555,9 +406,7 @@ avgLegend.append("text")
     .attr("class", "title")
     .text("Multivariate Structure of Track Success");
 
-  /* ---------------------------
-     Legend
-     --------------------------- */
+
   const legend = svg.append("g")
     .attr("transform", `translate(${width - margin.right + 10},${margin.top})`);
 
@@ -586,32 +435,35 @@ avgLegend.append("text")
 
 }, [data]);
 
-
-
 return (
   <div id="main-container">
-    {/* SHARED LEGEND */}
-    <div className="legend">
-      <strong>Legend</strong><br />
-      <span style={{ color: "#bdbdbd" }}>■</span> Lower popularity / attention<br />
-      <span style={{ color: "#9ecae1" }}>■</span> Higher popularity / attention<br />
-      <span style={{ color: "#2171b5" }}>■</span> Highest popularity / attention<br />
-    </div>
 
-    {/* Top: Overview */}
-    <div id="overview-row" className="chart-container">
-      <svg ref={view1Ref} />
-    </div>
-
-    {/* Bottom: Focus + Advanced */}
-    <div id="bottom-row">
-      <div className="chart-container">
-        <svg ref={view2Ref} />
-      </div>
+    {/* TOP ROW: MULTIVARIATE + FOCUS */}
+    <div id="top-row">
       <div className="chart-container">
         <svg ref={view3Ref} />
       </div>
+
+      <div className="chart-container">
+        <svg ref={view2Ref} />
+      </div>
     </div>
+
+   <div id="overview-row">
+  <div className="chart-container overview-container">
+    <svg ref={view1Ref} />
+
+    <div className="legend legend-inside">
+      <strong>Legend</strong><br />
+      <span style={{ color: "#bdbdbd" }}>■</span> Lower popularity<br />
+      <span style={{ color: "#9ecae1" }}>■</span> Higher popularity<br />
+      <span style={{ color: "#2171b5" }}>■</span> Highest popularity<br />
+    </div>
+  </div>
+</div>
+
+
+
   </div>
 );
 }
