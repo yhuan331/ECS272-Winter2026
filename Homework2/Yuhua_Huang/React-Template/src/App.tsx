@@ -373,7 +373,6 @@ svg.append("text")
 //     .text("Multivariate Structure of Track Success");
 
 // }, [data]);
-
 useEffect(() => {
   if (!data.length || !view3Ref.current) return;
 
@@ -384,24 +383,37 @@ useEffect(() => {
   const height = 320;
   const margin = { top: 50, right: 120, bottom: 40, left: 50 };
 
-  /* ---------------------------
-     Subsample to reduce clutter
-     --------------------------- */
- const filtered = data.filter(d => d.artist_followers > 1_000_000);
-const sampled = d3.shuffle(filtered).slice(0, 700);
+  svg.attr("viewBox", `0 0 ${width} ${height}`);
 
   /* ---------------------------
      Extract PRIMARY genre only
      --------------------------- */
   const getPrimaryGenre = (g: string) => {
     if (!g) return "Other";
-    const cleaned = g
-      .replace("[", "")
-      .replace("]", "")
-      .replace(/'/g, "")
-      .split(",");
-    return cleaned[0]?.trim() || "Other";
+    return g
+      .replace(/[\[\]']/g, "")
+      .split(",")[0]
+      ?.trim() || "Other";
   };
+
+  /* ---------------------------
+     Filter + Top 8 genres
+     --------------------------- */
+  const filtered = data.filter(d => d.artist_followers > 1_000_000);
+
+  const genreCounts = d3.rollups(
+    filtered,
+    v => v.length,
+    d => getPrimaryGenre(d.artist_genres)
+  )
+    .sort((a, b) => d3.descending(a[1], b[1]))
+    .slice(0, 10);
+
+  const topGenres = genreCounts.map(d => d[0]);
+
+  const sampled = filtered.filter(d =>
+    topGenres.includes(getPrimaryGenre(d.artist_genres))
+  );
 
   /* ---------------------------
      Dimensions
@@ -422,7 +434,6 @@ const sampled = d3.shuffle(filtered).slice(0, 700);
       label: "Artist Followers",
       scale: d3.scaleLog().domain([1e6, 2e8])
     }
-
   ];
 
   dimensions.forEach(d =>
@@ -435,21 +446,15 @@ const sampled = d3.shuffle(filtered).slice(0, 700);
 
   const line = d3.line<[number, number]>();
 
-  svg.attr("viewBox", `0 0 ${width} ${height}`);
-
   /* ---------------------------
      Genre color scale
      --------------------------- */
-  const genres = Array.from(
-    new Set(sampled.map(d => getPrimaryGenre(d.artist_genres)))
-  );
-
   const color = d3.scaleOrdinal<string, string>()
-    .domain(genres)
+    .domain(topGenres)
     .range(d3.schemeTableau10);
 
   /* ---------------------------
-     Draw parallel lines
+     Draw parallel coordinate lines
      --------------------------- */
   svg.append("g")
     .selectAll("path")
@@ -470,11 +475,11 @@ const sampled = d3.shuffle(filtered).slice(0, 700);
     .attr("stroke-width", 0.8);
 
   /* ---------------------------
-     Median profile
+     Average profile
      --------------------------- */
   const averages = dimensions.map(dim =>
-  d3.mean(sampled, d => d[dim.key as keyof SpotifyRow]!)!
-);
+    d3.mean(sampled, d => d[dim.key as keyof SpotifyRow]!)!
+  );
 
   svg.append("path")
     .attr("d",
@@ -489,13 +494,39 @@ const sampled = d3.shuffle(filtered).slice(0, 700);
     .attr("stroke", "#d62728")
     .attr("stroke-width", 3);
 
-  svg.append("text")
-    .attr("x", x("artist_popularity")! + 6)
-    .attr("y", dimensions[1].scale(averages[1]) - 8)
-    .attr("fill", "#d62728")
-    .attr("font-size", 11)
-    .attr("font-weight", "bold")
-    .text("Average track profile");
+/* ---------------------------
+   Legend — Average Profile
+   --------------------------- */
+const avgLegend = svg.append("g")
+  .attr(
+    "transform",
+    `translate(${width - margin.right + 10}, ${margin.top + topGenres.length * 16 + 30})`
+  );
+
+// Title
+avgLegend.append("text")
+  .attr("x", 0)
+  .attr("y", -6)
+  .attr("font-size", 11)
+  .attr("font-weight", "bold")
+  .text("Reference");
+
+// Red line sample
+avgLegend.append("line")
+  .attr("x1", 0)
+  .attr("x2", 18)
+  .attr("y1", 6)
+  .attr("y2", 6)
+  .attr("stroke", "#d62728")
+  .attr("stroke-width", 3);
+
+// Label
+avgLegend.append("text")
+  .attr("x", 24)
+  .attr("y", 9)
+  .attr("font-size", 10)
+  .text("Average track profile");
+
 
   /* ---------------------------
      Axes + labels
@@ -525,7 +556,7 @@ const sampled = d3.shuffle(filtered).slice(0, 700);
     .text("Multivariate Structure of Track Success");
 
   /* ---------------------------
-     LEGEND (Genres)
+     Legend
      --------------------------- */
   const legend = svg.append("g")
     .attr("transform", `translate(${width - margin.right + 10},${margin.top})`);
@@ -537,7 +568,7 @@ const sampled = d3.shuffle(filtered).slice(0, 700);
     .attr("font-weight", "bold")
     .text("Primary Genre");
 
-  genres.slice(0, 8).forEach((g, i) => {
+  topGenres.forEach((g, i) => {
     const row = legend.append("g")
       .attr("transform", `translate(0, ${i * 16})`);
 
@@ -554,6 +585,7 @@ const sampled = d3.shuffle(filtered).slice(0, 700);
   });
 
 }, [data]);
+
 
 
 return (
