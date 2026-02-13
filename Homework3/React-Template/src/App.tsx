@@ -437,6 +437,7 @@ if (!artistData.length || !view3Ref.current) return;
 
   svg.attr("viewBox", `0 0 ${width} ${height}`);
 
+
   const baselineY = height - 100;
 
   const topArtists = d3.rollups(
@@ -493,21 +494,38 @@ const linkSelection = svg.append("g")
   .data(links)
   .enter()
   .append("path")
-  .attr("d", d => {
-    const x1 = x(d.source)!;
-    const x2 = x(d.target)!;
-    const r = Math.abs(x2 - x1) / 2;
-
-    return `
-      M ${x1} ${baselineY}
-      A ${r} ${r} 0 0 1 ${x2} ${baselineY}
-    `;
-  })
   .attr("fill", "none")
   .attr("stroke", "#999")
-  .attr("stroke-opacity", 0.4)
+  .attr("stroke-opacity", 0.3)
   .attr("stroke-width", 1.5)
+
   .attr("class", "arc-link");
+
+
+  const buildArc = (source: string, target: string) => {
+  const x1 = x(source)!;
+  const x2 = x(target)!;
+  const r = Math.abs(x2 - x1) / 2;
+
+  const sweep = x1 < x2 ? 1 : 0;
+
+  return `
+    M ${x1} ${baselineY}
+    A ${r} ${r} 0 0 ${sweep} ${x2} ${baselineY}
+  `;
+};
+
+const animateLink = (path: any) => {
+  const totalLength = path.node().getTotalLength();
+
+  path
+    .attr("stroke-dasharray", totalLength)
+    .attr("stroke-dashoffset", totalLength)
+    .transition()
+    .duration(800)
+    .ease(d3.easeCubicOut)
+    .attr("stroke-dashoffset", 0);
+};
 
 const nodeSelection = svg.append("g")
   .selectAll("circle")
@@ -546,22 +564,46 @@ let activeNode: string | null = null;
 const highlight = (name: string) => {
   activeNode = name;
 
-  linkSelection
-    .attr("stroke", d =>
-      d.source === name || d.target === name
-        ? "#2171b5"
-        : "#ddd"
-    )
-    .attr("stroke-width", d =>
-      d.source === name || d.target === name
-        ? 3
-        : 1
-    )
-    .attr("stroke-opacity", d =>
-      d.source === name || d.target === name
-        ? 1
-        : 0.1
-    );
+  linkSelection.each(function (d) {
+    const path = d3.select(this);
+
+    if (d.source === name || d.target === name) {
+
+      let arcPath;
+
+      if (topArtists.includes(name)) {
+    // clicked artist → Artist → Genre
+    arcPath = buildArc(d.source, d.target);
+  } else {
+    arcPath = buildArc(d.target, d.source);
+  }
+
+
+      path
+        .attr("d", arcPath)
+        .attr("stroke", "#2171b5")
+        .attr("stroke-width", 3)
+        .attr("stroke-opacity", 1);
+
+      const totalLength = (path.node() as SVGPathElement).getTotalLength();
+
+      path
+        .attr("stroke-dasharray", totalLength)
+        .attr("stroke-dashoffset", totalLength)
+        .transition()
+        .duration(900)
+        .ease(d3.easeCubicOut)
+        .attr("stroke-dashoffset", 0);
+
+    } else {
+      path
+        .attr("stroke", "#ddd")
+        .attr("stroke-width", 1)
+        .attr("stroke-opacity", 0.1)
+        .attr("stroke-dasharray", null)
+        .attr("stroke-dashoffset", null);
+    }
+  });
 
   nodeSelection
     .attr("fill", d =>
@@ -576,6 +618,9 @@ const highlight = (name: string) => {
       d === name ? "bold" : "normal"
     );
 };
+
+linkSelection.attr("d", d => buildArc(d.source, d.target));
+
 
 const reset = () => {
   activeNode = null;
