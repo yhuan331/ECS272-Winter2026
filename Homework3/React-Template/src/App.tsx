@@ -189,7 +189,7 @@ useEffect(() => {
 
   const width = 500;
   const height = 340;
-  const margin = { top: 60, right: 40, bottom: 50, left: 220 };
+  const margin = { top: 60, right: 40, bottom: 100, left: 220 };
 
   let displayData: [string, number][] = [];
   let title = "Top 10 Artists Overall";
@@ -300,24 +300,45 @@ useEffect(() => {
   // ===============================
   // VALUES
   // ===============================
-  svg.append("g")
-    .selectAll("text.value")
-    .data(displayData)
-    .enter()
-    .append("text")
-    .attr("class", "value")
-    .attr("x", d => x(d[1]) + 6)
-    .attr("y", d => y(d[0])! + y.bandwidth() / 2)
-    .attr("dy", "0.35em")
-    .attr("font-size", 11)
-    .text(d => d[1]);
+const formatNumber = (num: number) => {
+  if (num >= 1_000_000_000) return (num / 1_000_000_000).toFixed(1) + "B";
+  if (num >= 1_000_000) return (num / 1_000_000).toFixed(1) + "M";
+  if (num >= 1_000) return (num / 1_000).toFixed(1) + "K";
+  return num.toString();
+};
+
+svg.append("g")
+  .selectAll("text.value")
+  .data(displayData)
+  .enter()
+  .append("text")
+  .attr("class", "value")
+  .attr("x", d => x(d[1]) + 6)
+  .attr("y", d => y(d[0])! + y.bandwidth() / 2)
+  .attr("dy", "0.35em")
+  .attr("font-size", 11)
+  .text(d => formatNumber(d[1]));
 
   // ===============================
   // AXES
   // ===============================
-  svg.append("g")
-    .attr("transform", `translate(0,${height - margin.bottom})`)
-    .call(d3.axisBottom(x).ticks(5));
+  // svg.append("g")
+  //   .attr("transform", `translate(0,${height - margin.bottom})`)
+  //   .call(d3.axisBottom(x).ticks(5));
+
+  const xAxis = d3.axisBottom(x)
+  .ticks(6)
+  .tickFormat(d => formatNumber(Number(d)));
+
+svg.append("g")
+  .attr("transform", `translate(0,${height - margin.bottom})`)
+  .call(xAxis)
+  .selectAll("text")
+  .attr("transform", "rotate(90)")
+  .style("text-anchor", "START")
+  .attr("dx", "0.5em")
+  .attr("dy", "-0.5em");
+
 
   svg.append("g")
     .attr("transform", `translate(${margin.left},0)`)
@@ -340,9 +361,9 @@ useEffect(() => {
   // X Label
   svg.append("text")
     .attr("x", (margin.left + width - margin.right) / 2)
-    .attr("y", height - 5)
+    .attr("y", height + 320)
     .attr("text-anchor", "middle")
-    .attr("font-size", 12)
+    .attr("font-size", 12) 
     .text(
       selectedType === "artist"
         ? "Track Popularity"
