@@ -9,7 +9,15 @@ import { hexbin } from "d3-hexbin";
 /* =======================
    DATA TYPE (FIXED)
    ======================= */
-type SpotifyRow = {
+type SpotifyRowArtist = {
+  track_popularity: number;
+  artist_name: string;
+  artist_popularity: number;
+  artist_followers: number;
+  artist_genres: string;
+};
+
+type SpotifyRowTrack = {
   track_popularity: number;
   track_duration_ms: number;
   artist_name: string;
@@ -19,8 +27,11 @@ type SpotifyRow = {
 };
 
 export default function App() {
-  const [data, setData] = useState<SpotifyRow[]>([]);
+const [data, setData] = useState<SpotifyRowArtist[]>([]);
 const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
+const [artistData, setArtistData] = useState<SpotifyRowArtist[]>([]);
+const [trackData, setTrackData] = useState<SpotifyRowTrack[]>([]);
+
 
   const view1Ref = useRef<SVGSVGElement | null>(null);
   const view2Ref = useRef<SVGSVGElement | null>(null);
@@ -29,11 +40,18 @@ const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
   /* =======================
      LOAD DATA
      ======================= */
-  useEffect(() => {
-    d3.csv("/data/spotify_data_clean.csv", d3.autoType).then(d => {
-      setData(d as SpotifyRow[]);
-    });
-  }, []);
+useEffect(() => {
+  d3.csv("/data/spotify_data_clean.csv", d3.autoType).then(d => { //ArtistData
+    setArtistData(d as SpotifyRowArtist[]);
+  });
+}, []);
+
+useEffect(() => {
+  d3.csv("/data/spotify.csv", d3.autoType).then(d => { //TrackData
+    setTrackData(d as SpotifyRowTrack[]);
+  });
+}, []);
+
 
 
 
@@ -41,7 +59,7 @@ const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
      VIEW hexgram  — Popularity vs Track Duration
      ========================================================= */
   useEffect(() => {
-    if (!data.length || !view1Ref.current) return;
+    if (!trackData.length || !view1Ref.current) return;
 
     const getPrimaryGenre = (g: string) => {
       if (!g) return "other";
@@ -49,8 +67,8 @@ const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
     };
 
     const filteredData = selectedGenre
-      ? data.filter(d => getPrimaryGenre(d.artist_genres) === selectedGenre)
-      : data;
+      ? trackData.filter(d => getPrimaryGenre(d.artist_genres) === selectedGenre)
+      : trackData;
 
 
     const svg = d3.select(view1Ref.current);
@@ -152,14 +170,14 @@ const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
       .attr("text-anchor", "middle")
       .attr("font-size", 11)
       .text("Track Popularity");
-}, [data, selectedGenre]);
+}, [trackData, selectedGenre]);
 
 
   /* =========================================================
      VIEW 2 — FOCUS: Artist Attention
      ========================================================= */
   useEffect(() => {
-    if (!data.length || !view2Ref.current) return;
+    if (!trackData.length || !view2Ref.current) return;
 
 const getPrimaryGenre = (g: string) => {
   if (!g) return "other";
@@ -167,8 +185,8 @@ const getPrimaryGenre = (g: string) => {
 };
 
 const filteredData = selectedGenre
-  ? data.filter(d => getPrimaryGenre(d.artist_genres) === selectedGenre)
-  : data;
+  ? trackData.filter(d => getPrimaryGenre(d.artist_genres) === selectedGenre)
+  : trackData;
 
 
     const svg = d3.select(view2Ref.current);
@@ -266,36 +284,31 @@ svg.append("text")
   .attr("text-anchor", "middle")
   .attr("font-size", 11)
   .text("Artist");
-}, [data, selectedGenre]);
+}, [trackData, selectedGenre]);
 
-/* =========================================================
-   VIEW 3 — Arc Diagram (Artist → Multiple Genres)
-   ========================================================= */
+//view3
 
 useEffect(() => {
-  if (!data.length || !view3Ref.current) return;
+if (!artistData.length || !view3Ref.current) return;
+
 
   const svg = d3.select(view3Ref.current);
   svg.selectAll("*").remove();
 
-  const width = 750;
-  const height = 380;
-  const margin = { top: 50, right: 200, bottom: 40, left: 200 };
+  const width = 1000;
+  const height = 400;
+  const margin = { top: 80, right: 40, bottom: 60, left: 40 };
 
   svg.attr("viewBox", `0 0 ${width} ${height}`);
 
-console.log(
-  data
-    .filter(d => d.artist_name === "Taylor Swift")
-    .map(d => d.artist_genres)
-);
-
+  const baselineY = height - 100;
 
   /* -------------------------
-     1️⃣ Get Top 10 Artists
+     1️⃣ Top 10 Artists
      ------------------------- */
+
   const topArtists = d3.rollups(
-    data,
+    artistData,
     v => d3.mean(v, d => d.artist_followers)!,
     d => d.artist_name
   )
@@ -303,160 +316,198 @@ console.log(
     .slice(0, 10)
     .map(d => d[0]);
 
-  const filtered = data.filter(d =>
-    topArtists.includes(d.artist_name)
+  const parseGenres = (g: string) => {
+    if (!g) return [];
+    return g
+      .replace(/[\[\]']/g, "")
+      .split(",")
+      .map(s => s.trim())
+      .filter(Boolean);
+  };
+
+  // Build artist → genres
+  const artistGenreMap = new Map<string, Set<string>>();
+
+  topArtists.forEach(artist => {
+    const rows = artistData.filter(d => d.artist_name === artist);
+    const set = new Set<string>();
+
+    rows.forEach(d => {
+      parseGenres(d.artist_genres).forEach(g => set.add(g));
+    });
+
+    artistGenreMap.set(artist, set);
+  });
+
+  const links: { source: string; target: string }[] = [];
+
+  artistGenreMap.forEach((genres, artist) => {
+    genres.forEach(g => {
+      links.push({ source: artist, target: g });
+    });
+  });
+
+  const genres = Array.from(
+    new Set(links.map(d => d.target))
   );
 
   /* -------------------------
-     2️⃣ Build Artist → Genres Links
+     2️⃣ Combine nodes in ONE array
      ------------------------- */
+
+  const nodes = [...topArtists, ...genres];
+
+  const x = d3.scalePoint()
+    .domain(nodes)
+    .range([margin.left, width - margin.right]);
+
+  /* -------------------------
+   3️⃣ Draw arcs
+------------------------- */
+
+const linkSelection = svg.append("g")
+  .selectAll("path")
+  .data(links)
+  .enter()
+  .append("path")
+  .attr("d", d => {
+    const x1 = x(d.source)!;
+    const x2 = x(d.target)!;
+    const r = Math.abs(x2 - x1) / 2;
+
+    return `
+      M ${x1} ${baselineY}
+      A ${r} ${r} 0 0 1 ${x2} ${baselineY}
+    `;
+  })
+  .attr("fill", "none")
+  .attr("stroke", "#999")
+  .attr("stroke-opacity", 0.4)
+  .attr("stroke-width", 1.5)
+  .attr("class", "arc-link");
+
 
 /* -------------------------
-   2️⃣ Build Artist → Genres Links (FIXED)
-   ------------------------- */
+   4️⃣ Draw nodes
+------------------------- */
 
-const parseGenres = (g: string) => {
-  if (!g) return [];
-  return g
-    .replace(/[\[\]']/g, "")
-    .split(",")
-    .map(s => s.trim())
-    .filter(Boolean);
+const nodeSelection = svg.append("g")
+  .selectAll("circle")
+  .data(nodes)
+  .enter()
+  .append("circle")
+  .attr("cx", d => x(d)!)
+  .attr("cy", baselineY)
+  .attr("r", d =>
+    topArtists.includes(d) ? 12 : 6
+  )
+  .attr("fill", d =>
+    topArtists.includes(d) ? "#6baed6" : "#bdbdbd"
+  )
+  .attr("class", "arc-node")
+  .style("cursor", "pointer");
+
+
+/* -------------------------
+   5️⃣ Labels
+------------------------- */
+
+const labelSelection = svg.append("g")
+  .selectAll("text")
+  .data(nodes)
+  .enter()
+  .append("text")
+  .attr("x", d => x(d)!)
+  .attr("y", baselineY + 25)
+  .attr("text-anchor", "middle")
+  .attr("font-size", 10)
+  .attr("class", "arc-label")
+  .style("cursor", "pointer")
+  .text(d => d);
+
+
+/* -------------------------
+   6️⃣ Interaction Logic
+------------------------- */
+
+let activeNode: string | null = null;
+
+const highlight = (name: string) => {
+  activeNode = name;
+
+  // Highlight arcs
+  linkSelection
+    .attr("stroke", d =>
+      d.source === name || d.target === name
+        ? "#2171b5"
+        : "#ddd"
+    )
+    .attr("stroke-width", d =>
+      d.source === name || d.target === name
+        ? 3
+        : 1
+    )
+    .attr("stroke-opacity", d =>
+      d.source === name || d.target === name
+        ? 1
+        : 0.1
+    );
+
+  // Highlight nodes
+  nodeSelection
+    .attr("fill", d =>
+      d === name ? "#2171b5" : "#ccc"
+    )
+    .attr("r", d =>
+      d === name ? 16 : (topArtists.includes(d) ? 12 : 6)
+    );
+
+  // Bold label
+  labelSelection
+    .attr("font-weight", d =>
+      d === name ? "bold" : "normal"
+    );
 };
 
-// Group by artist first
-const artistGenreMap = new Map<string, Set<string>>();
+const reset = () => {
+  activeNode = null;
 
-filtered.forEach(d => {
-  const genres = parseGenres(d.artist_genres);
+  linkSelection
+    .attr("stroke", "#999")
+    .attr("stroke-width", 1.5)
+    .attr("stroke-opacity", 0.4);
 
-  if (!artistGenreMap.has(d.artist_name)) {
-    artistGenreMap.set(d.artist_name, new Set());
+  nodeSelection
+    .attr("fill", d =>
+      topArtists.includes(d) ? "#6baed6" : "#bdbdbd"
+    )
+    .attr("r", d =>
+      topArtists.includes(d) ? 12 : 6
+    );
+
+  labelSelection
+    .attr("font-weight", "normal");
+};
+
+
+/* Attach click to both nodes and labels */
+
+nodeSelection.on("click", (_, d) => {
+  if (activeNode === d) {
+    reset();
+  } else {
+    highlight(d);
   }
-
-  genres.forEach(g => {
-    artistGenreMap.get(d.artist_name)!.add(g);
-  });
 });
 
-// Now build links from aggregated map
-const links: { artist: string; genre: string }[] = [];
-
-artistGenreMap.forEach((genreSet, artist) => {
-  genreSet.forEach(genre => {
-    links.push({ artist, genre });
-  });
+labelSelection.on("click", (_, d) => {
+  if (activeNode === d) {
+    reset();
+  } else {
+    highlight(d);
+  }
 });
 
-const genres = Array.from(
-  new Set(links.map(d => d.genre))
-).sort();
-
-
-  /* -------------------------
-     3️⃣ Position Scales
-     ------------------------- */
-
-  const yArtist = d3.scalePoint()
-    .domain(topArtists)
-    .range([margin.top, height - margin.bottom]);
-
-  const yGenre = d3.scalePoint()
-    .domain(genres)
-    .range([margin.top, height - margin.bottom]);
-
-  const leftX = margin.left;
-  const rightX = width - margin.right;
-
-  /* -------------------------
-     4️⃣ Draw Curved Links
-     ------------------------- */
-
-  const linkGroup = svg.append("g");
-
-  linkGroup.selectAll("path")
-    .data(links)
-    .enter()
-    .append("path")
-    .attr("d", d => {
-      const y1 = yArtist(d.artist)!;
-      const y2 = yGenre(d.genre)!;
-      const midX = (leftX + rightX) / 2;
-
-      return `
-        M ${leftX} ${y1}
-        Q ${midX} ${(y1 + y2) / 2 - 50}
-        ${rightX} ${y2}
-      `;
-    })
-    .attr("fill", "none")
-    .attr("stroke", "#9ecae1")
-    .attr("stroke-width", 1.2)
-    .attr("stroke-opacity", 0.5)
-    .attr("class", "arc-link");
-
-  /* -------------------------
-     5️⃣ Interaction
-     ------------------------- */
-
-  const highlight = (name: string) => {
-    svg.selectAll<SVGPathElement, any>(".arc-link")
-      .attr("stroke", d =>
-        d.artist === name || d.genre === name
-          ? "#2171b5"
-          : "#ddd"
-      )
-      .attr("stroke-width", d =>
-        d.artist === name || d.genre === name
-          ? 3
-          : 1
-      )
-      .attr("stroke-opacity", d =>
-        d.artist === name || d.genre === name
-          ? 1
-          : 0.1
-      );
-  };
-
-  const reset = () => {
-    svg.selectAll(".arc-link")
-      .attr("stroke", "#9ecae1")
-      .attr("stroke-width", 1.2)
-      .attr("stroke-opacity", 0.5);
-  };
-
-  /* -------------------------
-     6️⃣ Draw Artist Labels
-     ------------------------- */
-
-  svg.append("g")
-    .selectAll("text")
-    .data(topArtists)
-    .enter()
-    .append("text")
-    .attr("x", leftX - 15)
-    .attr("y", d => yArtist(d)!)
-    .attr("text-anchor", "end")
-    .attr("alignment-baseline", "middle")
-    .style("cursor", "pointer")
-    .text(d => d)
-    .on("click", (_, d) => highlight(d));
-
-  /* -------------------------
-     7️⃣ Draw Genre Labels
-     ------------------------- */
-
-  svg.append("g")
-    .selectAll("text")
-    .data(genres)
-    .enter()
-    .append("text")
-    .attr("x", rightX + 15)
-    .attr("y", d => yGenre(d)!)
-    .attr("alignment-baseline", "middle")
-    .style("cursor", "pointer")
-    .text(d => d)
-    .on("click", (_, d) => highlight(d));
 
   /* -------------------------
      Title
@@ -464,14 +515,13 @@ const genres = Array.from(
 
   svg.append("text")
     .attr("x", width / 2)
-    .attr("y", 25)
+    .attr("y", 30)
     .attr("text-anchor", "middle")
     .attr("class", "title")
-    .text("Top 10 Artists and All Their Genres");
+    .text("Top 10 Artists and Their Genre Connections");
 
+}, [artistData]);
 
-
-}, [data]);
 
 
 
