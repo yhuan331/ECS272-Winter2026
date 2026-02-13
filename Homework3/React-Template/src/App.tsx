@@ -6,20 +6,18 @@ import "./style.css";
 import { hexbin } from "d3-hexbin";
 
 
-/* =======================
-   DATA TYPE (FIXED)
-   ======================= */
 type SpotifyRowArtist = {
   track_popularity: number;
   artist_name: string;
   artist_popularity: number;
   artist_followers: number;
   artist_genres: string;
+  track_name: string;
 };
 
 
 type SpotifyRowTrack = {
-  track_name: string;          // ✅ add this
+  track_name: string;
   track_popularity: number;
   track_duration_ms: number;
   artist_name: string;
@@ -33,6 +31,7 @@ const [data, setData] = useState<SpotifyRowArtist[]>([]);
 const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
 const [artistData, setArtistData] = useState<SpotifyRowArtist[]>([]);
 const [trackData, setTrackData] = useState<SpotifyRowTrack[]>([]);
+const [maxBinCount, setMaxBinCount] = useState<number>(0);
 
 
 const [selectedNode, setSelectedNode] = useState<string | null>(null); //for view 2 
@@ -62,121 +61,183 @@ useEffect(() => {
 
 
   /* =========================================================
-     VIEW hexgram  — Popularity vs Track Duration
+     VIEW 1
      ========================================================= */
-  useEffect(() => {
-    if (!trackData.length || !view1Ref.current) return;
+useEffect(() => {
+  if (!trackData.length || !view1Ref.current) return;
 
-    const getPrimaryGenre = (g: string) => {
-      if (!g) return "other";
-      return g.replace(/[\[\]']/g, "").split(",")[0]?.trim() || "other";
-    };
+  const svg = d3.select(view1Ref.current);
+  svg.selectAll("*").remove();
 
-    const filteredData = selectedGenre
-      ? trackData.filter(d => getPrimaryGenre(d.artist_genres) === selectedGenre)
-      : trackData;
+  const width = 900;
+  const height = 260;
+  const margin = { top: 40, right: 30, bottom: 50, left: 60 };
 
 
-    const svg = d3.select(view1Ref.current);
-    svg.selectAll("*").remove();
 
-    const width = 900;
-    const height = 260;
-    const margin = { top: 40, right: 30, bottom: 50, left: 60 };
+  svg.attr("viewBox", `0 0 ${width} ${height}`);
 
- const tooltip = d3.select("body")
-  .append("div")
-  .style("position", "absolute")
-  .style("background", "white")
-  .style("padding", "6px")
-  .style("border", "1px solid gray")
-  .style("border-radius", "4px")
-  .style("font-size", "12px")
-  .style("opacity", 0);
+  let highlightArtist: string | null = null;
 
+  if (selectedNode && selectedType === "artist") {
+    highlightArtist = selectedNode;
+  }
 
-    const x = d3.scaleLinear()
-  .domain([0, 7])              
+  let topSongs: SpotifyRowTrack[] = [];
+
+  if (highlightArtist) {
+    topSongs = trackData
+      .filter(d => d.artist_name === highlightArtist)
+      .sort((a, b) =>
+        d3.descending(a.track_popularity, b.track_popularity)
+      )
+      .slice(0, 10);
+  }
+
+  d3.selectAll(".hex-tooltip").remove();
+
+  const tooltip = d3.select("body")
+    .append("div")
+    .attr("class", "hex-tooltip")
+    .style("position", "absolute")
+    .style("background", "white")
+    .style("padding", "8px")
+    .style("border", "1px solid gray")
+    .style("border-radius", "4px")
+    .style("font-size", "12px")
+    .style("pointer-events", "none")
+    .style("opacity", 0);
+
+  const x = d3.scaleLinear()
+  .domain([0, 7])
   .range([margin.left, width - margin.right])
   .clamp(true);
 
+const y = d3.scaleLinear()
+  .domain([0, 100])
+  .range([height - margin.bottom, margin.top]);
 
-    const y = d3.scaleLinear()
-      .domain([0, 100])
-      .range([height - margin.bottom, margin.top]);
+const points = trackData.map((d, i) => ({
+  x: x(d.track_duration_ms / 60000),
+  y: y(d.track_popularity),
+  artist: d.artist_name,
+  index: i
+}));
 
-    svg.attr("viewBox", `0 0 ${width} ${height}`);
-    const points = filteredData.map(d => [
+const hex = hexbin<any>()
+  .x(d => d.x)
+  .y(d => d.y)
+  .extent([[margin.left, margin.top], [width - margin.right, height - margin.bottom]])
+  .radius(8);
 
-      x(d.track_duration_ms / 60000),
-      y(d.track_popularity)
-    ]);
+const bins = hex(points);
 
-    const hex = hexbin()
-      .extent([[margin.left, margin.top], [width - margin.right, height - margin.bottom]])
-      .radius(8);
+const maxCount = d3.max(bins, d => d.length) || 0;
+setMaxBinCount(maxCount);
 
-    const bins = hex(points);
+let colorMaxCount = maxCount;
+if (highlightArtist) {
+  colorMaxCount = d3.max(bins, d => {
+    const artistPoints = d.filter(p => p.artist === highlightArtist);
+    return artistPoints.length;
+  }) || 1;
+}
 
-    const color = d3.scaleSequential(d3.interpolateBlues)
-      .domain([0, d3.max(bins, d => d.length)!]);
+const color = d3.scaleSequential(t => d3.interpolateBlues(0.3 + t * 0.7))
+  .domain([0, colorMaxCount])
+  .clamp(true);
 
-      
-    svg.append("g")
-      .selectAll("path")
-      .data(bins)
-      .enter()
-      .append("path")
-.on("mouseover", function(event, d) {
+  const hexGroup = svg.append("g");
+
+hexGroup.selectAll("path")
+    .data(bins)
+    .enter()
+    .append("path")
+    .attr("d", hex.hexagon())
+    .attr("transform", d => `translate(${d.x},${d.y})`)
+    .attr("stroke", "white")
+    .attr("stroke-width", 0.3)
+    .attr("fill", d => {
+      if (!highlightArtist) {
+        return color(d.length);
+      }
+
+      const artistPoints = d.filter(p => p.artist === highlightArtist);
+
+      if (artistPoints.length > 0) {
+        return color(artistPoints.length);
+      } else {
+        return "#f0f0f0";
+      }
+    })
+.on("mouseover", function (event, d) {
+  let songsInBin = d.map(p => trackData[p.index]);
+
+  if (highlightArtist) {
+    songsInBin = songsInBin.filter(
+      s => s.artist_name === highlightArtist
+    );
+  }
+
+  if (!songsInBin.length) return;
+
+  const totalCount = songsInBin.length;
+  const displaySongs = songsInBin.slice(0, 10);
+  const hasMore = totalCount > 10;
+
   tooltip
     .style("opacity", 1)
-    .html(`Tracks in bin: ${d.length}`)
+    .html(`
+      <strong>Songs in this bin (${totalCount}):</strong><br/>
+      ${displaySongs.map(s => s.track_name).join("<br/>")}
+      ${hasMore ? `<br/><strong>(${totalCount - 10} more...)</strong>` : ""}
+    `)
     .style("left", event.pageX + 10 + "px")
     .style("top", event.pageY - 20 + "px");
 })
-.on("mouseout", () => tooltip.style("opacity", 0))
-.attr("d", hex.hexagon())
-.attr("opacity", 0)
-.transition()
-.duration(800)
-.attr("opacity", 1)
 
-      .attr("transform", d => `translate(${d.x},${d.y})`)
-      .attr("fill", d => color(d.length))
-      .attr("stroke", "white")
-      .attr("stroke-width", 0.3);
+    .on("mouseout", () => tooltip.style("opacity", 0))
+    .attr("opacity", 0)
+    .transition()
+    .duration(800)
+    .attr("opacity", d => {
+      if (!highlightArtist) return 1;
 
+      const hasArtist = d.some(p => p.artist === highlightArtist);
+      return hasArtist ? 1 : 0.2;
+    });
 
-    svg.append("g")
-      .attr("transform", `translate(0,${height - margin.bottom})`)
-      .call(d3.axisBottom(x).ticks(6));
+  svg.append("g")
+    .attr("transform", `translate(0,${height - margin.bottom})`)
+    .call(d3.axisBottom(x).ticks(6));
 
-    svg.append("g")
-      .attr("transform", `translate(${margin.left},0)`)
-      .call(d3.axisLeft(y));
+  svg.append("g")
+    .attr("transform", `translate(${margin.left},0)`)
+    .call(d3.axisLeft(y));
 
-    svg.append("text")
-      .attr("x", width / 2)
-      .attr("y", 20)
-      .attr("text-anchor", "middle")
-      .attr("class", "title")
-      .text("Track Duration vs Popularity");
+  svg.append("text")
+    .attr("x", width / 2)
+    .attr("y", 20)
+    .attr("text-anchor", "middle")
+    .attr("class", "title")
+    .text("Track Duration vs Popularity");
 
-    svg.append("text")
-      .attr("x", width / 2)
-      .attr("y", height - 10)
-      .attr("text-anchor", "middle")
-      .attr("font-size", 11)
-      .text("Track Duration (minutes)");
+  svg.append("text")
+    .attr("x", width / 2)
+    .attr("y", height - 10)
+    .attr("text-anchor", "middle")
+    .attr("font-size", 11)
+    .text("Track Duration (minutes)");
 
-    svg.append("text")
-      .attr("transform", "rotate(-90)")
-      .attr("x", -height / 2)
-      .attr("y", 15)
-      .attr("text-anchor", "middle")
-      .attr("font-size", 11)
-      .text("Track Popularity");
-}, [trackData, selectedGenre]);
+  svg.append("text")
+    .attr("transform", "rotate(-90)")
+    .attr("x", -height / 2)
+    .attr("y", 15)
+    .attr("text-anchor", "middle")
+    .attr("font-size", 11)
+    .text("Track Popularity");
+
+}, [trackData, selectedNode, selectedType]);
 
 // ==========================
 // VIEW 2
@@ -194,13 +255,9 @@ useEffect(() => {
   let displayData: [string, number][] = [];
   let title = "Top 10 Artists Overall";
 
-  // ===============================
-  // CASE 1: Artist selected → Top 10 Songs
-  // ===============================
   if (selectedNode && selectedType === "artist") {
     const topTracks = artistData
       .filter(d => d.artist_name === selectedNode)
-      // dedupe track names
       .filter((d, i, arr) =>
         arr.findIndex(x => x.track_name === d.track_name) === i
       )
@@ -217,9 +274,6 @@ useEffect(() => {
     title = `Top 10 Songs – ${selectedNode}`;
   }
 
-  // ===============================
-  // CASE 2: Genre selected → Top 10 Artists
-  // ===============================
   else if (selectedNode && selectedType === "genre") {
      const genreFiltered = artistData.filter(d => {
   if (!d.artist_genres) return false;
@@ -243,9 +297,6 @@ useEffect(() => {
     title = `Top 10 Artists – ${selectedNode}`;
   }
 
-  // ===============================
-  // DEFAULT VIEW
-  // ===============================
   else {
     displayData = d3.rollups(
       artistData,
@@ -258,7 +309,6 @@ useEffect(() => {
     title = "Top 10 Artists Overall";
   }
 
-  // If nothing found
   if (!displayData.length) {
     svg.append("text")
       .attr("x", width / 2)
@@ -280,26 +330,27 @@ useEffect(() => {
     .range([margin.top, height - margin.bottom])
     .padding(0.25);
 
-  // ===============================
-  // BARS
-  // ===============================
-  svg.append("g")
-    .selectAll("rect")
-    .data(displayData)
-    .enter()
-    .append("rect")
-    .attr("x", margin.left)
-    .attr("y", d => y(d[0])!)
-    .attr("width", 0)
-    .attr("height", y.bandwidth())
-    .attr("fill", "#6baed6")
-    .transition()
-    .duration(700)
-    .attr("width", d => x(d[1]) - margin.left);
+svg.append("g")
+  .selectAll("rect")
+  .data(displayData)
+  .enter()
+  .append("rect")
+  .attr("x", margin.left)
+  .attr("y", d => y(d[0])!)
+  .attr("width", 0)
+  .attr("height", y.bandwidth())
+  .attr("fill", "#6baed6")
+  .style("cursor", "pointer")
+  .on("click", (_, d) => {
+    if (selectedType === "genre" || selectedType === null) {
+      setSelectedNode(d[0]);
+      setSelectedType("artist");
+    }
+  })
+  .transition()
+  .duration(700)
+  .attr("width", d => x(d[1]) - margin.left);
 
-  // ===============================
-  // VALUES
-  // ===============================
 const formatNumber = (num: number) => {
   if (num >= 1_000_000_000) return (num / 1_000_000_000).toFixed(1) + "B";
   if (num >= 1_000_000) return (num / 1_000_000).toFixed(1) + "M";
@@ -319,13 +370,6 @@ svg.append("g")
   .attr("font-size", 11)
   .text(d => formatNumber(d[1]));
 
-  // ===============================
-  // AXES
-  // ===============================
-  // svg.append("g")
-  //   .attr("transform", `translate(0,${height - margin.bottom})`)
-  //   .call(d3.axisBottom(x).ticks(5));
-
   const xAxis = d3.axisBottom(x)
   .ticks(6)
   .tickFormat(d => formatNumber(Number(d)));
@@ -344,9 +388,6 @@ svg.append("g")
     .attr("transform", `translate(${margin.left},0)`)
     .call(d3.axisLeft(y));
 
-  // ===============================
-  // TITLE
-  // ===============================
   svg.append("text")
     .attr("x", width / 2)
     .attr("y", 30)
@@ -354,14 +395,9 @@ svg.append("g")
     .attr("class", "title")
     .text(title);
 
-  // ===============================
-  // AXIS LABELS
-  // ===============================
-
-  // X Label
   svg.append("text")
     .attr("x", (margin.left + width - margin.right) / 2)
-    .attr("y", height + 320)
+    .attr("y", height + 10)
     .attr("text-anchor", "middle")
     .attr("font-size", 12) 
     .text(
@@ -370,7 +406,6 @@ svg.append("g")
         : "Artist Followers"
     );
 
-  // Y Label
   svg.append("text")
     .attr("transform", "rotate(-90)")
     .attr("x", -(margin.top + height - margin.bottom) / 2)
@@ -385,8 +420,9 @@ svg.append("g")
 
 }, [artistData, selectedNode, selectedType]);
 
-
-//view3
+// ==========================
+// VIEW 3
+// ==========================
 
 useEffect(() => {
 if (!artistData.length || !view3Ref.current) return;
@@ -402,10 +438,6 @@ if (!artistData.length || !view3Ref.current) return;
   svg.attr("viewBox", `0 0 ${width} ${height}`);
 
   const baselineY = height - 100;
-
-  /* -------------------------
-     1️⃣ Top 10 Artists
-     ------------------------- */
 
   const topArtists = d3.rollups(
     artistData,
@@ -425,7 +457,6 @@ if (!artistData.length || !view3Ref.current) return;
       .filter(Boolean);
   };
 
-  // Build artist → genres
   const artistGenreMap = new Map<string, Set<string>>();
 
   topArtists.forEach(artist => {
@@ -451,19 +482,11 @@ if (!artistData.length || !view3Ref.current) return;
     new Set(links.map(d => d.target))
   );
 
-  /* -------------------------
-     2️⃣ Combine nodes in ONE array
-     ------------------------- */
-
   const nodes = [...topArtists, ...genres];
 
   const x = d3.scalePoint()
     .domain(nodes)
     .range([margin.left, width - margin.right]);
-
-  /* -------------------------
-   3️⃣ Draw arcs
-------------------------- */
 
 const linkSelection = svg.append("g")
   .selectAll("path")
@@ -486,11 +509,6 @@ const linkSelection = svg.append("g")
   .attr("stroke-width", 1.5)
   .attr("class", "arc-link");
 
-
-/* -------------------------
-   4️⃣ Draw nodes
-------------------------- */
-
 const nodeSelection = svg.append("g")
   .selectAll("circle")
   .data(nodes)
@@ -507,41 +525,27 @@ const nodeSelection = svg.append("g")
   .attr("class", "arc-node")
   .style("cursor", "pointer");
 
-
-/* -------------------------
-   5️⃣ Labels
-------------------------- */
-
-/* -------------------------
-   5️⃣ Labels (ROTATED 90°)
-------------------------- */
-
 const labelSelection = svg.append("g")
   .selectAll("text")
   .data(nodes)
   .enter()
   .append("text")
   .attr("x", d => x(d)!)
-  .attr("y", baselineY + 30)   // slight offset below node
+  .attr("y", baselineY + 30)
   .attr("transform", d => 
     `rotate(-90, ${x(d)!}, ${baselineY + 30})`
   )
-  .attr("text-anchor", "end")  // makes it cleaner when rotated
+  .attr("text-anchor", "end")  
   .attr("font-size", 12)
   .attr("class", "arc-label")
   .style("cursor", "pointer")
   .text(d => d);
-
-/* -------------------------
-   6️⃣ Interaction Logic
-------------------------- */
 
 let activeNode: string | null = null;
 
 const highlight = (name: string) => {
   activeNode = name;
 
-  // Highlight arcs
   linkSelection
     .attr("stroke", d =>
       d.source === name || d.target === name
@@ -559,7 +563,6 @@ const highlight = (name: string) => {
         : 0.1
     );
 
-  // Highlight nodes
   nodeSelection
     .attr("fill", d =>
       d === name ? "#2171b5" : "#ccc"
@@ -568,7 +571,6 @@ const highlight = (name: string) => {
       d === name ? 16 : (topArtists.includes(d) ? 12 : 6)
     );
 
-  // Bold label
   labelSelection
     .attr("font-weight", d =>
       d === name ? "bold" : "normal"
@@ -594,9 +596,6 @@ const reset = () => {
   labelSelection
     .attr("font-weight", "normal");
 };
-
-
-/* Attach click to both nodes and labels */
 
 nodeSelection.on("click", (_, d) => {
   if (activeNode === d) {
@@ -625,12 +624,6 @@ labelSelection.on("click", (_, d) => {
     );
   }
 });
-
-
-
-  /* -------------------------
-     Title
-     ------------------------- */
 
   svg.append("text")
     .attr("x", width / 2)
@@ -662,14 +655,17 @@ return (
   <div className="chart-container overview-container">
     <svg ref={view1Ref} />
 
-    <div className="legend legend-inside">
-      <strong>Legend</strong><br />
-      <span style={{ color: "#bdbdbd" }}>■</span> Lower popularity<br />
-      <span style={{ color: "#9ecae1" }}>■</span> Higher popularity<br />
-      <span style={{ color: "#2171b5" }}>■</span> Highest popularity<br />
-    </div>
+    {maxBinCount > 0 && (
+      <div className="legend legend-inside">
+        <strong>Song Density</strong><br />
+        <span style={{ color: d3.interpolateBlues(0.1) }}>■</span>Low count<br />
+        <span style={{ color: d3.interpolateBlues(0.5) }}>■</span>Medium count<br />
+        <span style={{ color: d3.interpolateBlues(1) }}>■</span>High count<br />
+      </div>
+    )}
   </div>
 </div>
+
 
 
 
