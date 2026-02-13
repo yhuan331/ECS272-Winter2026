@@ -17,7 +17,9 @@ type SpotifyRowArtist = {
   artist_genres: string;
 };
 
+
 type SpotifyRowTrack = {
+  track_name: string;          // ✅ add this
   track_popularity: number;
   track_duration_ms: number;
   artist_name: string;
@@ -31,6 +33,10 @@ const [data, setData] = useState<SpotifyRowArtist[]>([]);
 const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
 const [artistData, setArtistData] = useState<SpotifyRowArtist[]>([]);
 const [trackData, setTrackData] = useState<SpotifyRowTrack[]>([]);
+
+
+const [selectedNode, setSelectedNode] = useState<string | null>(null); //for view 2 
+const [selectedType, setSelectedType] = useState<"artist" | "genre" | null>(null);
 
 
   const view1Ref = useRef<SVGSVGElement | null>(null);
@@ -172,119 +178,192 @@ useEffect(() => {
       .text("Track Popularity");
 }, [trackData, selectedGenre]);
 
+// ==========================
+// VIEW 2
+// ==========================
+useEffect(() => {
+  if (!artistData.length || !view2Ref.current) return;
 
-  /* =========================================================
-     VIEW 2 — FOCUS: Artist Attention
-     ========================================================= */
-  useEffect(() => {
-    if (!trackData.length || !view2Ref.current) return;
+  const svg = d3.select(view2Ref.current);
+  svg.selectAll("*").remove();
 
-const getPrimaryGenre = (g: string) => {
-  if (!g) return "other";
-  return g.replace(/[\[\]']/g, "").split(",")[0]?.trim() || "other";
-};
+  const width = 500;
+  const height = 340;
+  const margin = { top: 60, right: 40, bottom: 50, left: 220 };
 
-const filteredData = selectedGenre
-  ? trackData.filter(d => getPrimaryGenre(d.artist_genres) === selectedGenre)
-  : trackData;
+  let displayData: [string, number][] = [];
+  let title = "Top 10 Artists Overall";
+
+  // ===============================
+  // CASE 1: Artist selected → Top 10 Songs
+  // ===============================
+  if (selectedNode && selectedType === "artist") {
+    const topTracks = artistData
+      .filter(d => d.artist_name === selectedNode)
+      // dedupe track names
+      .filter((d, i, arr) =>
+        arr.findIndex(x => x.track_name === d.track_name) === i
+      )
+      .sort((a, b) =>
+        d3.descending(a.track_popularity, b.track_popularity)
+      )
+      .slice(0, 10);
+
+    displayData = topTracks.map(d => [
+      d.track_name,
+      d.track_popularity
+    ]);
+
+    title = `Top 10 Songs – ${selectedNode}`;
+  }
+
+  // ===============================
+  // CASE 2: Genre selected → Top 10 Artists
+  // ===============================
+  else if (selectedNode && selectedType === "genre") {
+     const genreFiltered = artistData.filter(d => {
+  if (!d.artist_genres) return false;
+
+  const genres = String(d.artist_genres)
+    .split(",")
+    .map(g => g.trim().toLowerCase());
+
+  return genres.includes(selectedNode!.toLowerCase());
+});
 
 
-    const svg = d3.select(view2Ref.current);
-    svg.selectAll("*").remove();
-
-    const width = 400;
-    const height = 320;
-    const margin = { top: 40, right: 40, bottom: 40, left: 150 };
-
-    const topArtists = d3.rollups(
-      filteredData,
+    displayData = d3.rollups(
+      genreFiltered,
       v => d3.mean(v, d => d.artist_followers)!,
       d => d.artist_name
     )
       .sort((a, b) => d3.descending(a[1], b[1]))
       .slice(0, 10);
 
-    const x = d3.scaleLinear()
-      .domain([0, d3.max(topArtists, d => d[1])!])
-      .range([margin.left, width - margin.right]);
+    title = `Top 10 Artists – ${selectedNode}`;
+  }
 
-    const y = d3.scaleBand()
-      .domain(topArtists.map(d => d[0]))
-      .range([margin.top, height - margin.bottom])
-      .padding(0.25);
+  // ===============================
+  // DEFAULT VIEW
+  // ===============================
+  else {
+    displayData = d3.rollups(
+      artistData,
+      v => d3.mean(v, d => d.artist_followers)!,
+      d => d.artist_name
+    )
+      .sort((a, b) => d3.descending(a[1], b[1]))
+      .slice(0, 10);
 
-    const colorScale = d3.scaleThreshold<number, string>()
-      .domain([100_000_000, 110_000_000, 120_000_000, 130_000_000])
-      .range([
-        "#deebf7", // < 100M 
-        "#9eb8d1", // 100–110M
-        "#6d9eba", // 110–120M
-        "#3f7dba", // 120–130M
-        "#12538c"  // 130M+ 
-      ]);
+    title = "Top 10 Artists Overall";
+  }
 
-
-    
-
-
-    svg.attr("viewBox", `0 0 ${width} ${height}`);
-
-    svg.append("g")
-      .selectAll("rect")
-      .data(topArtists)
-      .enter()
-      .append("rect")
-      .attr("x", margin.left)
-      .attr("y", d => y(d[0])!)
-      .attr("width", d => x(d[1]) - margin.left)
-      .attr("height", y.bandwidth())
-      .attr("fill", d => colorScale(d[1]))
-
-
-    svg.append("g")
-      .selectAll("text")
-      .data(topArtists)
-      .enter()
-      .append("text")
-      .attr("x", d => x(d[1]) + 5)
-      .attr("y", d => y(d[0])! + y.bandwidth() / 2)
-      .attr("dy", "0.35em")
-      .attr("font-size", 11)
-      .text(d => `${(d[1] / 1_000_000).toFixed(1)}M`);
-
-    svg.append("g")
-      .attr("transform", `translate(0,${height - margin.bottom})`)
-      .call(
-        d3.axisBottom(x)
-          .ticks(4)
-          .tickFormat(d => `${Number(d) / 1_000_000}M`)
-      );
-
-    svg.append("g")
-      .attr("transform", `translate(${margin.left},0)`)
-      .call(d3.axisLeft(y));
-
+  // If nothing found
+  if (!displayData.length) {
     svg.append("text")
       .attr("x", width / 2)
-      .attr("y", 20)
+      .attr("y", height / 2)
       .attr("text-anchor", "middle")
-      .attr("class", "title")
-      .text("Top 10 Artists with the Highest Follower counts");
+      .attr("font-size", 13)
+      .text("No matching data.");
+    return;
+  }
 
-    svg.append("text")
-  .attr("x", (margin.left + width - margin.right) / 2)
-  .attr("y", height - 5)
-  .attr("text-anchor", "middle")
-  .attr("font-size", 11)
-  .text("Artist Followers Counts");
-svg.append("text")
-  .attr("transform", "rotate(-90)")
-  .attr("x", -(margin.top + height - margin.bottom) / 2)
-  .attr("y", 20)
-  .attr("text-anchor", "middle")
-  .attr("font-size", 11)
-  .text("Artist");
-}, [trackData, selectedGenre]);
+  svg.attr("viewBox", `0 0 ${width} ${height}`);
+
+  const x = d3.scaleLinear()
+    .domain([0, d3.max(displayData, d => d[1])!])
+    .range([margin.left, width - margin.right]);
+
+  const y = d3.scaleBand()
+    .domain(displayData.map(d => d[0]))
+    .range([margin.top, height - margin.bottom])
+    .padding(0.25);
+
+  // ===============================
+  // BARS
+  // ===============================
+  svg.append("g")
+    .selectAll("rect")
+    .data(displayData)
+    .enter()
+    .append("rect")
+    .attr("x", margin.left)
+    .attr("y", d => y(d[0])!)
+    .attr("width", 0)
+    .attr("height", y.bandwidth())
+    .attr("fill", "#6baed6")
+    .transition()
+    .duration(700)
+    .attr("width", d => x(d[1]) - margin.left);
+
+  // ===============================
+  // VALUES
+  // ===============================
+  svg.append("g")
+    .selectAll("text.value")
+    .data(displayData)
+    .enter()
+    .append("text")
+    .attr("class", "value")
+    .attr("x", d => x(d[1]) + 6)
+    .attr("y", d => y(d[0])! + y.bandwidth() / 2)
+    .attr("dy", "0.35em")
+    .attr("font-size", 11)
+    .text(d => d[1]);
+
+  // ===============================
+  // AXES
+  // ===============================
+  svg.append("g")
+    .attr("transform", `translate(0,${height - margin.bottom})`)
+    .call(d3.axisBottom(x).ticks(5));
+
+  svg.append("g")
+    .attr("transform", `translate(${margin.left},0)`)
+    .call(d3.axisLeft(y));
+
+  // ===============================
+  // TITLE
+  // ===============================
+  svg.append("text")
+    .attr("x", width / 2)
+    .attr("y", 30)
+    .attr("text-anchor", "middle")
+    .attr("class", "title")
+    .text(title);
+
+  // ===============================
+  // AXIS LABELS
+  // ===============================
+
+  // X Label
+  svg.append("text")
+    .attr("x", (margin.left + width - margin.right) / 2)
+    .attr("y", height - 5)
+    .attr("text-anchor", "middle")
+    .attr("font-size", 12)
+    .text(
+      selectedType === "artist"
+        ? "Track Popularity"
+        : "Artist Followers"
+    );
+
+  // Y Label
+  svg.append("text")
+    .attr("transform", "rotate(-90)")
+    .attr("x", -(margin.top + height - margin.bottom) / 2)
+    .attr("y", 20)
+    .attr("text-anchor", "middle")
+    .attr("font-size", 12)
+    .text(
+      selectedType === "artist"
+        ? "Track Name"
+        : "Artist Name"
+    );
+
+}, [artistData, selectedNode, selectedType]);
+
 
 //view3
 
@@ -412,19 +491,25 @@ const nodeSelection = svg.append("g")
    5️⃣ Labels
 ------------------------- */
 
+/* -------------------------
+   5️⃣ Labels (ROTATED 90°)
+------------------------- */
+
 const labelSelection = svg.append("g")
   .selectAll("text")
   .data(nodes)
   .enter()
   .append("text")
   .attr("x", d => x(d)!)
-  .attr("y", baselineY + 25)
-  .attr("text-anchor", "middle")
-  .attr("font-size", 10)
+  .attr("y", baselineY + 30)   // slight offset below node
+  .attr("transform", d => 
+    `rotate(-90, ${x(d)!}, ${baselineY + 30})`
+  )
+  .attr("text-anchor", "end")  // makes it cleaner when rotated
+  .attr("font-size", 12)
   .attr("class", "arc-label")
   .style("cursor", "pointer")
   .text(d => d);
-
 
 /* -------------------------
    6️⃣ Interaction Logic
@@ -495,18 +580,31 @@ const reset = () => {
 nodeSelection.on("click", (_, d) => {
   if (activeNode === d) {
     reset();
+    setSelectedNode(null);
+    setSelectedType(null);
   } else {
     highlight(d);
+    setSelectedNode(d);
+    setSelectedType(
+      topArtists.includes(d) ? "artist" : "genre"
+    );
   }
 });
 
 labelSelection.on("click", (_, d) => {
   if (activeNode === d) {
     reset();
+    setSelectedNode(null);
+    setSelectedType(null);
   } else {
     highlight(d);
+    setSelectedNode(d);
+    setSelectedType(
+      topArtists.includes(d) ? "artist" : "genre"
+    );
   }
 });
+
 
 
   /* -------------------------
@@ -515,7 +613,7 @@ labelSelection.on("click", (_, d) => {
 
   svg.append("text")
     .attr("x", width / 2)
-    .attr("y", 30)
+    .attr("y", -30)
     .attr("text-anchor", "middle")
     .attr("class", "title")
     .text("Top 10 Artists and Their Genre Connections");
