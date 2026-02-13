@@ -339,7 +339,7 @@ svg.append("g")
   .attr("y", d => y(d[0])!)
   .attr("width", 0)
   .attr("height", y.bandwidth())
-  .attr("fill", "#6baed6")
+  .attr("fill", "#74d1cc")
   .style("cursor", "pointer")
   .on("click", (_, d) => {
     if (selectedType === "genre" || selectedType === null) {
