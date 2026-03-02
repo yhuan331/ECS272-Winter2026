@@ -5,8 +5,8 @@
  *
  *  "prob"   — GNN Survival Prediction
  *               spike height = raw prob (0→1)
- *               spike color  = survival gradient:
- *                              green (high survival) → yellow → red (low survival)
+ *               spike color  = death risk gradient:
+ *                              green (low death risk) → yellow → red (high death risk)
  *
  *  "delta"  — Δ Prob (default, original behaviour)
  *               spike height = |probDelta|
@@ -25,7 +25,7 @@ const BASE_R = 130;
 const CENTER_R = 110;
 const SIZE = 700;
 
-type ViewMode = "prob" | "delta";
+export type ViewMode = "prob" | "delta";
 
 // ── Color helpers ────────────────────────────────────────────────────────────
 
@@ -44,12 +44,12 @@ function lerpColor(a: string, b: string, t: number): string {
  */
 function survivalColor(prob: number): string {
   const stops = [
-    { t: 0.0,  color: "#9B2335" },
-    { t: 0.25, color: "#E53E3E" },
+    { t: 0.0,  color: "#276749" }, // deep green — low death prob = safe
+    { t: 0.25, color: "#68D391" },
     { t: 0.45, color: "#DD6B20" },
     { t: 0.55, color: "#D69E2E" },
-    { t: 0.75, color: "#68D391" },
-    { t: 1.0,  color: "#276749" },
+    { t: 0.75, color: "#E53E3E" },
+    { t: 1.0,  color: "#9B2335" }, // deep red — high death prob = danger
   ];
   const p = Math.min(1, Math.max(0, prob));
   if (p <= stops[0].t) return stops[0].color;
@@ -72,12 +72,18 @@ interface RadialProps {
   selectedWeek: number | null;
   onSelectWeek: (week: number | null) => void;
   onHoverWeek: (data: WeekData | null) => void;
+  onModeChange: (mode: ViewMode) => void;
 }
 
-export function RadialGlyph({ selectedWeek, onSelectWeek, onHoverWeek }: RadialProps) {
+export function RadialGlyph({ selectedWeek, onSelectWeek, onHoverWeek, onModeChange }: RadialProps) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const [mode, setMode]             = useState<ViewMode>("delta");
   const svgRef = useRef<SVGSVGElement>(null);
+
+  const handleSetMode = (m: ViewMode) => {
+    setMode(m);
+    onModeChange(m);
+  };
 
   if (!weeklyData.length) return (
     <div style={{ display:"flex", alignItems:"center", justifyContent:"center",
@@ -180,8 +186,8 @@ export function RadialGlyph({ selectedWeek, onSelectWeek, onHoverWeek }: RadialP
 
   // ── Mode config ──────────────────────────────────────────────────────────
   const modeConfig = {
-    prob:  { label: "GNN Survival Prediction", short: "GNN PROB", accent: "#38A169",
-             legend: [{ color:"#276749", label:"high survival" }, { color:"#D69E2E", label:"mid" }, { color:"#9B2335", label:"low survival" }],
+    prob:  { label: "GNN Death Probability", short: "GNN PROB (DEATH)", accent: "#38A169",
+             legend: [{ color:"#276749", label:"low death risk" }, { color:"#D69E2E", label:"mid" }, { color:"#9B2335", label:"high death risk" }],
              encoding: "height = prob · width = team size" },
     delta: { label: "Δ Week-over-Week Change",  short: "Δ PROB",  accent: "#E53E3E",
              legend: [{ color:"#E53E3E", label:"rising" }, { color:"#D69E2E", label:"stable" }, { color:"#38A169", label:"falling" }],
@@ -203,7 +209,7 @@ export function RadialGlyph({ selectedWeek, onSelectWeek, onHoverWeek }: RadialP
           const cfg      = modeConfig[m];
           const isActive = mode === m;
           return (
-            <button key={m} onClick={() => setMode(m)} style={{
+            <button key={m} onClick={() => handleSetMode(m)} style={{
               flex: 1, padding: "9px 0 7px",
               fontFamily: FONT, fontSize: 10, fontWeight: 700, letterSpacing: 1,
               cursor: "pointer",
@@ -410,7 +416,7 @@ function LegendDot({ color, label }: { color: string; label: string }) {
   );
 }
 
-// ── Panel components (unchanged) ──────────────────────────────────────────────
+// ── Panel components ──────────────────────────────────────────────────────────
 
 export function Stat({ label, value, color, small }: { label: string; value: string; color: string; small?: boolean }) {
   return (
@@ -421,26 +427,66 @@ export function Stat({ label, value, color, small }: { label: string; value: str
   );
 }
 
-export function EmptyPanel({ avgRiskAll, peakWeek, totalPatientHCP, avgNotes }: {
-  avgRiskAll: string; peakWeek: any; totalPatientHCP: number; avgNotes: string;
+export function EmptyPanel({ avgRiskAll, peakWeek, totalPatientHCP, avgNotes, mode, peakDeltaWeek }: {
+  avgRiskAll: string;
+  peakWeek: WeekData | null;
+  totalPatientHCP: number;
+  avgNotes: string;
+  mode: ViewMode;
+  peakDeltaWeek?: WeekData | null;
 }) {
+  const isProb = mode === "prob";
   return (
     <div style={{ fontFamily: T.font }}>
-      <div style={{ color: T.textFaint, fontSize: 11, letterSpacing: 1.5, marginBottom: 8 }}>HOVER A SPIKE TO INSPECT</div>
+      <div style={{ color: T.textFaint, fontSize: 11, letterSpacing: 1.5, marginBottom: 8 }}>
+        HOVER A SPIKE TO INSPECT
+      </div>
       <div style={{ color: T.textMuted, fontSize: 9, marginBottom: 8 }}>
-        GNN PROB: green=high survival · red=low survival&nbsp;&nbsp;|&nbsp;&nbsp;Δ PROB: red=rising · green=falling
+        {isProb
+          ? "GNN PROB: green=low death risk · red=high death risk"
+          : "Δ PROB: red=rising · green=falling · height = |Δ| · width = team size"
+        }
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 16px" }}>
-        <Stat label="AVG RISK"   value={`${avgRiskAll}%`}        color="#D69E2E" />
-        <Stat label="TOTAL HCP"  value={String(totalPatientHCP)} color="#2B6CB0" />
-        <Stat label="NOTES / WK" value={avgNotes}                color="#38A169" />
-        {peakWeek && <Stat label="PEAK WEEK" value={`W${peakWeek.week} · ${(peakWeek.riskScore*100).toFixed(0)}%`} color="#E53E3E" />}
+        {isProb ? (
+          <>
+            <Stat label="AVG RISK"   value={`${avgRiskAll}%`}        color="#D69E2E" />
+            <Stat label="TOTAL HCP"  value={String(totalPatientHCP)} color="#2B6CB0" />
+            <Stat label="NOTES / WK" value={avgNotes}                color="#38A169" />
+            {peakWeek && (
+              <Stat
+                label="PEAK WEEK"
+                value={`W${peakWeek.week} · ${(peakWeek.riskScore * 100).toFixed(0)}%`}
+                color="#E53E3E"
+              />
+            )}
+          </>
+        ) : (
+          <>
+            <Stat label="TOTAL HCP"  value={String(totalPatientHCP)} color="#2B6CB0" />
+            <Stat label="NOTES / WK" value={avgNotes}                color="#38A169" />
+            {peakDeltaWeek && (
+              <>
+                <Stat
+                  label="LARGEST Δ WEEK"
+                  value={`W${peakDeltaWeek.week}`}
+                  color="#E53E3E"
+                />
+                <Stat
+                  label="PEAK Δ VALUE"
+                  value={`${peakDeltaWeek.probDelta >= 0 ? "+" : ""}${(peakDeltaWeek.probDelta * 100).toFixed(1)}%`}
+                  color={peakDeltaWeek.spikeColor}
+                />
+              </>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-export function WeekPanel({ data, pinned }: { data: WeekData; pinned?: boolean }) {
+export function WeekPanel({ data, pinned, mode }: { data: WeekData; pinned?: boolean; mode?: ViewMode }) {
   const isSurgeonWeek = surgeonEvents.includes(data.week);
   return (
     <div style={{ fontFamily: T.font }}>
@@ -458,11 +504,26 @@ export function WeekPanel({ data, pinned }: { data: WeekData; pinned?: boolean }
           }
         </span>
       </div>
+
+      {/* ── Top stats row — switches based on mode ── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px 16px", marginBottom: 14 }}>
-        <Stat label="GNN SCORE" value={`${(data.riskScore * 100).toFixed(1)}%`} color={data.spikeColor} />
-        <Stat label="TEAM SIZE" value={String(data.teamSize ?? "—")}            color="#6B9FFF" />
-        <Stat label="ENTROPY"   value={data.entropy?.toFixed(2) ?? "—"}         color="#A78BFA" />
+        {mode === "delta" ? (
+          <Stat
+            label="Δ PROB THIS WEEK"
+            value={`${data.probDelta >= 0 ? "+" : ""}${(data.probDelta * 100).toFixed(2)}%`}
+            color={data.spikeColor}
+          />
+        ) : (
+          <Stat
+            label="GNN Predicted Death Risk"
+            value={`${(data.riskScore * 100).toFixed(1)}%`}
+            color={data.spikeColor}
+          />
+        )}
+        <Stat label="TEAM SIZE" value={String(data.teamSize ?? "—")} color="#6B9FFF" />
+        <Stat label="ENTROPY"   value={data.entropy?.toFixed(2) ?? "—"} color="#A78BFA" />
       </div>
+
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <div>
           <div style={{ color: T.textSecondary, fontSize: 12, fontWeight: 700, marginBottom: 6, letterSpacing: 1 }}>ACTIVE SPECIALTIES</div>
@@ -476,7 +537,10 @@ export function WeekPanel({ data, pinned }: { data: WeekData; pinned?: boolean }
           <div style={{ color: T.textSecondary, fontSize: 12, fontWeight: 700, marginBottom: 4, letterSpacing: 1 }}>
             TOP ATTRIBUTES ({data.topSHAP?.length ?? 0})
           </div>
-          <div style={{ color: T.textMuted, fontSize: 15, marginBottom: 4 }}>red = raises survival score · green = lowers</div>
+          {/* ── FIXED: was "raises survival score" — corrected to death risk ── */}
+          <div style={{ color: T.textMuted, fontSize: 9, marginBottom: 4 }}>
+            red = raises death risk · green = lowers death risk
+          </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             {(data.topSHAP ?? []).slice(0, 10).map((s, si) => {
               const isPos = s.contribution >= 0;
@@ -509,9 +573,20 @@ export interface WeekInfoPanelProps {
   peakWeek: WeekData | null;
   totalHCP: number;
   avgNotes: string;
+  mode: ViewMode;
+  peakDeltaWeek?: WeekData | null;
 }
 
-export function WeekInfoPanel({ activeData, pinnedWeek, avgRiskAll, peakWeek, totalHCP, avgNotes }: WeekInfoPanelProps) {
+export function WeekInfoPanel({
+  activeData,
+  pinnedWeek,
+  avgRiskAll,
+  peakWeek,
+  totalHCP,
+  avgNotes,
+  mode,
+  peakDeltaWeek,
+}: WeekInfoPanelProps) {
   return (
     <div style={{
       height: "100%", background: T.bgCard, border: `1px solid ${T.border}`,
@@ -519,8 +594,15 @@ export function WeekInfoPanel({ activeData, pinnedWeek, avgRiskAll, peakWeek, to
       padding: "18px 22px", overflowY: "auto", fontFamily: T.font,
     }}>
       {activeData
-        ? <WeekPanel data={activeData} pinned={!!pinnedWeek} />
-        : <EmptyPanel avgRiskAll={avgRiskAll} peakWeek={peakWeek} totalPatientHCP={totalHCP} avgNotes={avgNotes} />
+        ? <WeekPanel data={activeData} pinned={!!pinnedWeek} mode={mode} />
+        : <EmptyPanel
+            avgRiskAll={avgRiskAll}
+            peakWeek={peakWeek}
+            totalPatientHCP={totalHCP}
+            avgNotes={avgNotes}
+            mode={mode}
+            peakDeltaWeek={peakDeltaWeek}
+          />
       }
     </div>
   );

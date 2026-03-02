@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
 import { ScatterPlot } from "./components/ScatterPlot";
 import { RadialGlyph, WeekInfoPanel } from "./components/RadialGlyph";
+import type { ViewMode } from "./components/RadialGlyph";
 import { HCPTreeMap } from "./components/HCPTreeMap";
-import { initRealData, switchPatient, selectedPatientId, totalPatientHCP, getPatientSummary } from "./realData";
-import type { WeekData } from "./realData";
-import { T } from "./theme";
+import { initRealData, switchPatient, selectedPatientId, totalPatientHCP, getPatientSummary, weeklyData } from "./realData";import { T } from "./theme";
 
 let _temporal: Record<string, unknown> = {};
 let _egoMap: Record<string, unknown> = {};
@@ -19,9 +18,8 @@ export default function App() {
   const [focusId, setFocusId]           = useState("");
   const [tick, setTick]                 = useState(0);
   const [selectedWeek, setSelectedWeek] = useState<number|null>(null);
-  // hoveredData: set by RadialGlyph on hover/click, drives WeekInfoPanel
   const [hoveredData, setHoveredData]   = useState<WeekData|null>(null);
-
+  const [mode, setMode]                 = useState<ViewMode>("delta");  // ← new
   useEffect(() => {
     initRealData("/temporal_networks.json", "/full_va_export_with_linear.json").then(() => {
       setFocusId(selectedPatientId);
@@ -68,6 +66,11 @@ export default function App() {
   );
 
   const { avgRiskAll, peakWeek, avgNotes } = getPatientSummary();
+  const peakDeltaWeek = weeklyData.length
+    ? weeklyData.reduce((best, d) =>
+        Math.abs(d.probDelta) > Math.abs(best.probDelta) ? d : best,
+        weeklyData[0])
+    : null;
 
   return (
     <div style={{
@@ -108,14 +111,16 @@ export default function App() {
         {/* Week info panel — remaining ~31% */}
         <div style={{ flex: "1 1 0", minHeight: 0 }}>
           <WeekInfoPanel
-            key={focusId + tick}
-            activeData={hoveredData}
-            pinnedWeek={selectedWeek}
-            avgRiskAll={avgRiskAll}
-            peakWeek={peakWeek}
-            totalHCP={totalPatientHCP}
-            avgNotes={avgNotes}
-          />
+          key={focusId + tick}
+          activeData={hoveredData}
+          pinnedWeek={selectedWeek}
+          avgRiskAll={avgRiskAll}
+          peakWeek={peakWeek}
+          totalHCP={totalPatientHCP}
+          avgNotes={avgNotes}
+          mode={mode}
+          peakDeltaWeek={peakDeltaWeek}
+        />
         </div>
       </div>
 
