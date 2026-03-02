@@ -34,10 +34,10 @@ export interface PatientDot {
 
 export interface WeekData {
   week: number;
-  riskScore: number;         // 0-1 normalized within patient range (for visuals)
-  rawProb: number;           // raw model probability (for display)
+  riskScore: number;         // raw model probability 0-1
+  probDelta: number;         // Δ from previous week (0 for week 0)
   teamSize: number;          // careTeamSize
-  spikeColor: string;        // interpolated from risk gradient
+  spikeColor: string;        // red=rising / green=falling based on probDelta
   hcpCount: number;          // unique HCPs active this week
   noteFrequency: number;     // notes logged this week
   attributeSummary: string;  // top +/- SHAP feature
@@ -201,19 +201,11 @@ function buildWeeklyData(
     }
   }
 
-  // Normalize risk per-patient so the full color gradient is always used
-  // Raw probs are typically in a narrow band (e.g. 0.3–0.5); normalizing
-  // makes relative changes visible in the radial spike heights and colors
-  const rawProbs = weekly.map((w) => w.prob).filter(Number.isFinite);
-  const minProb = Math.min(...rawProbs);
-  const maxProb = Math.max(...rawProbs);
-  const probRange = maxProb - minProb || 0.001;
-
-  return weekly.map((w) => {
-    // Normalized 0-1 within this patient's own risk range
-    const riskNorm = Math.min(1, Math.max(0, (w.prob - minProb) / probRange));
-    // Keep raw prob for display purposes
-    const riskScore = riskNorm;
+  return weekly.map((w, i) => {
+    const riskScore = Math.min(1, Math.max(0, w.prob));
+    // Week-over-week change — the evolution signal
+    const prevProb = i > 0 ? weekly[i - 1].prob : w.prob;
+    const probDelta = w.prob - prevProb;  // positive = risk rising, negative = falling
 
     // Top positive and negative SHAP features → readable summary
     const shap = w.topAttributesSHAP ?? [];
@@ -244,17 +236,33 @@ function buildWeeklyData(
 
     // HCP names from weeklyHCPSnapshot
     const snapshot = w.weeklyHCPSnapshot ?? [];
-    const hcpNames = snapshot
-      .map((h) => h.specialty && h.specialty !== "UNKNOWN" ? h.specialty : h.providerType)
-      .filter(Boolean)
-      .filter((v) => v !== "UNKNOWN");
+    const BAD = new Set(["UNKNOWN", "nan", "NaN", "null", "undefined", "", "NONE"]);
+    const hcpNames = [...new Set(snapshot
+      .map((h) => {
+        const sp = (h.specialty ?? "").trim();
+        const pt = (h.providerType ?? "").trim();
+        // Prefer specialty, fall back to providerType, skip bad values
+        if (sp && !BAD.has(sp)) return sp;
+        if (pt && !BAD.has(pt)) return pt;
+        return null;
+      })
+      .filter((v): v is string => v !== null)
+    )];
 
     return {
       week:             w.week,
       riskScore,
-      rawProb:          w.prob,
+      probDelta,
       teamSize:         w.careTeamSize,
-      spikeColor:       riskColor(riskScore),
+      // Color encodes DIRECTION of change:
+      //   rising  (delta > +0.5%)  → red spectrum  (alarming)
+      //   falling (delta < -0.5%)  → green spectrum (improving)
+      //   stable  (|delta| ≤ 0.5%) → amber (watch)
+      spikeColor: (() => {
+        if (probDelta > 0.005)  return riskColor(0.6 + Math.min(0.4, probDelta * 10));  // red
+        if (probDelta < -0.005) return riskColor(Math.max(0, 0.3 - Math.abs(probDelta) * 8)); // green
+        return riskColor(0.45); // amber = stable
+      })(),
       hcpCount:         snapshot.length || w.careTeamSize,
       noteFrequency:    notesByWeek[w.week] ?? 0,
       attributeSummary,
@@ -561,7 +569,10 @@ export function buildHCPTree(
   const groups: Record<string, Record<string, number>> = {};
   for (const h of snapshots) {
     const l1 = classifyHCP(h.specialty, h.providerType, h.clinicianTitle ?? "");
-    const sp = h.specialty && h.specialty !== "UNKNOWN" ? h.specialty : (h.providerType ?? "UNKNOWN");
+    const BAD_V = new Set(["UNKNOWN", "nan", "NaN", "null", "undefined", "", "NONE"]);
+    const rawSp = (h.specialty ?? "").trim();
+    const rawPt = (h.providerType ?? "").trim();
+    const sp = (!BAD_V.has(rawSp) && rawSp) ? rawSp : ((!BAD_V.has(rawPt) && rawPt) ? rawPt : "Unknown");
     if (!groups[l1]) groups[l1] = {};
     groups[l1][sp] = (groups[l1][sp] ?? 0) + 1;
   }

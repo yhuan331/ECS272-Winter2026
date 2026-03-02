@@ -64,7 +64,7 @@ export function RadialGlyph({ selectedWeek, onSelectWeek }: RadialProps) {
   const avgNotes = weeklyData.length ? (totalNotes / weeklyData.length).toFixed(1) : "0";
   const avgRiskAll = weeklyData.length
     ? ((weeklyData.reduce((s, d) => s + d.riskScore, 0) / weeklyData.length) * 100).toFixed(1)
-    : "0";
+    : "0"; // raw avg prob across weeks
   const peakWeek = weeklyData.length
     ? weeklyData.reduce((max, d) => (d.riskScore > max.riskScore ? d : max), weeklyData[0])
     : null;
@@ -72,10 +72,13 @@ export function RadialGlyph({ selectedWeek, onSelectWeek }: RadialProps) {
   const numWeeks = weeklyData.length;
   const anglePerWeek = 360 / Math.max(numWeeks, 1);
 
-  // Spike HEIGHT = risk score (already normalized 0-1 per patient)
-  // Spike WIDTH = care team size (normalized)
+  // Spike HEIGHT = |Δprob| (week-over-week risk change magnitude)
+  // Encodes EVOLUTION: tall spike = big change (up or down)
+  // Color encodes DIRECTION: red = rising, green = falling, amber = stable
+  const maxDelta = Math.max(...weeklyData.map(d => Math.abs(d.probDelta)), 0.001);
   const spikeHeights = weeklyData.map((d) => {
-    return 14 + d.riskScore * 90; // min 14px, max 104px
+    const norm = Math.abs(d.probDelta) / maxDelta;
+    return 10 + norm * 95; // min 10px stub, max 105px for largest swing
   });
 
   const teamSizes = weeklyData.map((d) => d.teamSize);
@@ -273,7 +276,7 @@ export function RadialGlyph({ selectedWeek, onSelectWeek }: RadialProps) {
           return (
             <g>
               <text x={lp.x} y={lp.y - 12} textAnchor="middle" dominantBaseline="central" fill={T.textMuted} fontSize={9} fontFamily={FONT}>ATTR SUMMARY</text>
-              <text x={lp.x} y={lp.y + 1} textAnchor="middle" dominantBaseline="central" fill="#D69E2E" fontSize={11} fontFamily={FONT}>Avg Risk {avgRiskAll}%</text>
+              <text x={lp.x} y={lp.y + 1} textAnchor="middle" dominantBaseline="central" fill="#D69E2E" fontSize={11} fontFamily={FONT}>Avg Prob {avgRiskAll}%</text>
               {peakWeek && (
                 <text x={lp.x} y={lp.y + 12} textAnchor="middle" dominantBaseline="central" fill={T.textSecondary} fontSize={9} fontFamily={FONT}>
                   Peak w{peakWeek.week} @ {(peakWeek.riskScore * 100).toFixed(0)}%
@@ -416,8 +419,9 @@ function EmptyPanel({ avgRiskAll, peakWeek, totalPatientHCP, avgNotes }: {
   return (
     <div style={{ fontFamily: FONT }}>
       <div style={{ color: T.textFaint, fontSize: 11, letterSpacing: 1.5, marginBottom: 8 }}>
-        HOVER A WEEK TO INSPECT
+        HOVER A SPIKE TO INSPECT
       </div>
+      <div style={{ color: T.textMuted, fontSize: 9, marginBottom: 8 }}>Spike height = |Δrisk|&nbsp;&nbsp;·&nbsp;&nbsp;Red = rising&nbsp;&nbsp;·&nbsp;&nbsp;Green = falling&nbsp;&nbsp;·&nbsp;&nbsp;Amber = stable</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 16px" }}>
         <Stat label="AVG RISK" value={`${avgRiskAll}%`} color="#D69E2E" />
         <Stat label="TOTAL HCP" value={String(totalPatientHCP)} color="#2B6CB0" />
@@ -451,7 +455,7 @@ function WeekPanel({ data, pinned }: { data: WeekData; pinned?: boolean }) {
 
       {/* Stats grid */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "4px 12px", marginBottom: 8 }}>
-        <Stat label="RISK (RAW)" value={`${((data.rawProb ?? data.riskScore)*100).toFixed(1)}%`} color={data.spikeColor} />
+        <Stat label="RISK (RAW)" value={`${((data.riskScore)*100).toFixed(1)}%`} color={data.spikeColor} />
         <Stat label="RISK (NORM)" value={`${(data.riskScore*100).toFixed(1)}%`} color="#94A3B8" />
         <Stat label="TEAM SIZE" value={String(data.teamSize)} color="#6B9FFF" />
         <Stat label="ENTROPY" value={data.entropy?.toFixed(2) ?? "—"} color="#A78BFA" />
@@ -471,8 +475,11 @@ function WeekPanel({ data, pinned }: { data: WeekData; pinned?: boolean }) {
 
         {/* SHAP features */}
         <div>
-          <div style={{ color: T.textSecondary, fontSize: 10, fontWeight: 700, marginBottom: 4, letterSpacing: 1 }}>
-            SHAP DRIVERS ({data.topSHAP?.length ?? 0})
+          <div style={{ color: T.textSecondary, fontSize: 10, fontWeight: 700, marginBottom: 2, letterSpacing: 1 }}>
+            SHAP CONTRIBUTIONS ({data.topSHAP?.length ?? 0} features)
+          </div>
+          <div style={{ color: T.textMuted, fontSize: 8, marginBottom: 4 }}>
+            red = raises risk · green = lowers risk
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             {(data.topSHAP ?? []).map((s, si) => {
@@ -509,11 +516,11 @@ function Row({ label, value, color }: { label: string; value: string; color: str
   );
 }
 
-function Stat({ label, value, color }: { label: string; value: string; color: string }) {
+function Stat({ label, value, color, small }: { label: string; value: string; color: string; small?: boolean }) {
   return (
     <div>
       <div style={{ color: T.textMuted, fontSize: 9, letterSpacing: 1, marginBottom: 2 }}>{label}</div>
-      <div style={{ color, fontSize: 13, fontWeight: 700, fontFamily: FONT }}>{value}</div>
+      <div style={{ color, fontSize: small ? 10 : 13, fontWeight: 700, fontFamily: FONT }}>{value}</div>
     </div>
   );
 }
