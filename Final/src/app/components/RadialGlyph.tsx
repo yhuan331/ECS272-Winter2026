@@ -45,12 +45,12 @@ interface TooltipInfo {
 interface RadialProps {
   selectedWeek: number | null;
   onSelectWeek: (week: number | null) => void;
+  onHoverWeek: (data: WeekData | null) => void;
 }
 
-export function RadialGlyph({ selectedWeek, onSelectWeek }: RadialProps) {
+export function RadialGlyph({ selectedWeek, onSelectWeek, onHoverWeek }: RadialProps) {
   const [hovered, setHovered] = useState<TooltipInfo | null>(null);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
-  const [pinned, setPinned] = useState<WeekData | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
   if (!weeklyData.length) return (
@@ -167,6 +167,7 @@ export function RadialGlyph({ selectedWeek, onSelectWeek }: RadialProps) {
         data: weeklyData[i],
       });
       setHoveredIdx(i);
+      onHoverWeek(weeklyData[i]);
     },
     [spikePaths]
   );
@@ -174,21 +175,22 @@ export function RadialGlyph({ selectedWeek, onSelectWeek }: RadialProps) {
   const handleSpikeLeave = useCallback(() => {
     setHovered(null);
     setHoveredIdx(null);
-  }, []);
+    onHoverWeek(null);
+  }, [onHoverWeek]);
 
   return (
     <div style={{
-      display: "flex",
-      flexDirection: "column",
       height: "100%",
       position: "relative",
       background: T.bgCard,
       border: `1px solid ${T.border}`,
       borderRadius: 10,
       boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
     }}>
-      {/* SVG takes ~65% of height */}
-      <div style={{ flex: "0 0 62%", minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <svg
         ref={svgRef}
         viewBox={`0 0 ${SIZE} ${SIZE}`}
@@ -395,25 +397,13 @@ export function RadialGlyph({ selectedWeek, onSelectWeek }: RadialProps) {
       </svg>
       </div>
 
-      {/* Info panel — fills remaining space below the glyph */}
-      <div style={{
-        flex: "1 1 0",
-        minHeight: 0,
-        overflowY: "auto",
-        padding: "8px 12px",
-        borderTop: `1px solid ${T.border}`,
-      }}>
-        {(pinned ?? hovered?.data)
-          ? <WeekPanel data={pinned ?? hovered!.data} pinned={!!pinned} />
-          : <EmptyPanel avgRiskAll={avgRiskAll} peakWeek={peakWeek} totalPatientHCP={totalPatientHCP} avgNotes={avgNotes} />
-        }
-      </div>
+
     </div>
   );
 }
 
 // ── Empty state panel (no week hovered) ──────────────────────────────────────
-function EmptyPanel({ avgRiskAll, peakWeek, totalPatientHCP, avgNotes }: {
+export function EmptyPanel({ avgRiskAll, peakWeek, totalPatientHCP, avgNotes }: {
   avgRiskAll: string; peakWeek: any; totalPatientHCP: number; avgNotes: string;
 }) {
   return (
@@ -433,7 +423,7 @@ function EmptyPanel({ avgRiskAll, peakWeek, totalPatientHCP, avgNotes }: {
 }
 
 // ── Week detail panel (shown in the space below glyph) ───────────────────────
-function WeekPanel({ data, pinned }: { data: WeekData; pinned?: boolean }) {
+export function WeekPanel({ data, pinned }: { data: WeekData; pinned?: boolean }) {
   const isSurgeonWeek = surgeonEvents.includes(data.week);
   return (
     <div style={{ fontFamily: FONT }}>
@@ -467,7 +457,7 @@ function WeekPanel({ data, pinned }: { data: WeekData; pinned?: boolean }) {
         <div>
           <div style={{ color: T.textSecondary, fontSize: 10, fontWeight: 700, marginBottom: 4, letterSpacing: 1 }}>ACTIVE SPECIALTIES</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            {(data.hcpNames?.length ? data.hcpNames : ["—"]).slice(0, 10).map((name, ni) => (
+            {(data.hcpNames?.filter(n => n && n !== "nan" && n !== "null") ?? []).slice(0, 10).map((name, ni) => (
               <span key={ni} style={{ color: T.textSecondary, fontSize: 10, lineHeight: 1.6 }}>· {name}</span>
             ))}
           </div>
@@ -516,11 +506,41 @@ function Row({ label, value, color }: { label: string; value: string; color: str
   );
 }
 
-function Stat({ label, value, color, small }: { label: string; value: string; color: string; small?: boolean }) {
+export function Stat({ label, value, color, small }: { label: string; value: string; color: string; small?: boolean }) {
   return (
     <div>
       <div style={{ color: T.textMuted, fontSize: 9, letterSpacing: 1, marginBottom: 2 }}>{label}</div>
       <div style={{ color, fontSize: small ? 10 : 13, fontWeight: 700, fontFamily: FONT }}>{value}</div>
+    </div>
+  );
+}
+
+// ── Exported side panel for App layout ───────────────────────────────────────
+export interface WeekInfoPanelProps {
+  activeData: WeekData | null;
+  pinnedWeek: number | null;
+  avgRiskAll: string;
+  peakWeek: WeekData | null;
+  totalHCP: number;
+  avgNotes: string;
+}
+
+export function WeekInfoPanel({ activeData, pinnedWeek, avgRiskAll, peakWeek, totalHCP, avgNotes }: WeekInfoPanelProps) {
+  return (
+    <div style={{
+      height: "100%",
+      background: T.bgCard,
+      border: `1px solid ${T.border}`,
+      borderRadius: 10,
+      boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+      padding: "14px 16px",
+      overflowY: "auto",
+      fontFamily: FONT,
+    }}>
+      {activeData
+        ? <WeekPanel data={activeData} pinned={!!pinnedWeek} />
+        : <EmptyPanel avgRiskAll={avgRiskAll} peakWeek={peakWeek} totalPatientHCP={totalHCP} avgNotes={avgNotes} />
+      }
     </div>
   );
 }

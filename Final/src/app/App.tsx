@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { ScatterPlot } from "./components/ScatterPlot";
-import { RadialGlyph } from "./components/RadialGlyph";
-import { TimelineChart } from "./components/TimelineChart";
+import { RadialGlyph, WeekInfoPanel } from "./components/RadialGlyph";
 import { HCPTreeMap } from "./components/HCPTreeMap";
-import { initRealData, switchPatient, selectedPatientId } from "./realData";
+import { initRealData, switchPatient, selectedPatientId, totalPatientHCP, getPatientSummary } from "./realData";
+import type { WeekData } from "./realData";
 import { T } from "./theme";
 
 let _temporal: Record<string, unknown> = {};
@@ -19,6 +19,8 @@ export default function App() {
   const [focusId, setFocusId]           = useState("");
   const [tick, setTick]                 = useState(0);
   const [selectedWeek, setSelectedWeek] = useState<number|null>(null);
+  // hoveredData: set by RadialGlyph on hover/click, drives WeekInfoPanel
+  const [hoveredData, setHoveredData]   = useState<WeekData|null>(null);
 
   useEffect(() => {
     initRealData("/temporal_networks.json", "/full_va_export_with_ego.json").then(() => {
@@ -38,7 +40,22 @@ export default function App() {
 
   const handleSelectPatient = (id: string) => {
     switchPatient(id, _temporal, _egoMap as never);
-    setFocusId(id); setSelectedWeek(null); setTick(t => t+1);
+    setFocusId(id);
+    setSelectedWeek(null);
+    setHoveredData(null);
+    setTick(t => t + 1);
+  };
+
+  const handleHoverWeek = (data: WeekData | null) => {
+    // Only update if not pinned (pinned = selectedWeek is set)
+    if (selectedWeek === null || data !== null) {
+      setHoveredData(data);
+    }
+  };
+
+  const handleSelectWeek = (week: number | null) => {
+    setSelectedWeek(week);
+    if (week === null) setHoveredData(null);
   };
 
   if (!ready) return (
@@ -49,30 +66,64 @@ export default function App() {
     </div>
   );
 
+  const { avgRiskAll, peakWeek, avgNotes } = getPatientSummary();
+
   return (
-    <div style={{ width:"100%", height:"100vh", background: T.bg,
-      display:"flex", fontFamily: T.font, overflow:"hidden" }}>
+    <div style={{
+      width: "100%",
+      height: "100vh",
+      background: T.bg,
+      fontFamily: T.font,
+      overflow: "hidden",
+      display: "flex",
+      flexDirection: "column",
+      padding: 12,
+      boxSizing: "border-box",
+      gap: 8,
+    }}>
 
-      {/* Left — scatter */}
-      <div style={{ width:"37%", padding:12, boxSizing:"border-box" }}>
-        <ScatterPlot selectedId={focusId} onSelectPatient={handleSelectPatient} />
-      </div>
-
-      {/* Right */}
-      <div style={{ width:"63%", display:"flex", flexDirection:"column",
-        padding:"12px 12px 12px 0", boxSizing:"border-box", gap:8 }}>
-
-        {/* Top row */}
-        <div style={{ flex:"1 1 0", minHeight:0, display:"flex", gap:8 }}>
-          <div style={{ flex:"0 0 60%", minHeight:0 }}>
-            <RadialGlyph key={focusId+tick} selectedWeek={selectedWeek} onSelectWeek={setSelectedWeek} />
-          </div>
-          <div style={{ flex:"1 1 0", minHeight:0 }}>
-            <HCPTreeMap key={focusId+tick+(selectedWeek??"all")} selectedWeek={selectedWeek} />
-          </div>
+      {/* ── TOP ROW: Scatter | Radial | WeekInfoPanel ── */}
+      <div style={{
+        flex: "0 0 62%",
+        minHeight: 0,
+        display: "flex",
+        gap: 8,
+      }}>
+        {/* Scatter — 30% */}
+        <div style={{ flex: "0 0 29%", minHeight: 0 }}>
+          <ScatterPlot selectedId={focusId} onSelectPatient={handleSelectPatient} />
         </div>
 
+        {/* Radial — 40% */}
+        <div style={{ flex: "0 0 39%", minHeight: 0 }}>
+          <RadialGlyph
+            key={focusId + tick}
+            selectedWeek={selectedWeek}
+            onSelectWeek={handleSelectWeek}
+            onHoverWeek={handleHoverWeek}
+          />
+        </div>
 
+        {/* Week info panel — remaining ~31% */}
+        <div style={{ flex: "1 1 0", minHeight: 0 }}>
+          <WeekInfoPanel
+            key={focusId + tick}
+            activeData={hoveredData}
+            pinnedWeek={selectedWeek}
+            avgRiskAll={avgRiskAll}
+            peakWeek={peakWeek}
+            totalHCP={totalPatientHCP}
+            avgNotes={avgNotes}
+          />
+        </div>
+      </div>
+
+      {/* ── BOTTOM ROW: Full-width TreeMap ── */}
+      <div style={{ flex: "1 1 0", minHeight: 0 }}>
+        <HCPTreeMap
+          key={focusId + tick + (selectedWeek ?? "all")}
+          selectedWeek={selectedWeek}
+        />
       </div>
     </div>
   );

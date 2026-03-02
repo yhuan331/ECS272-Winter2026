@@ -96,7 +96,7 @@ export function HCPTreeMap({ selectedWeek }: Props) {
   }
 
   const PAD = 8;
-  const W = 400, H_TREE = 340;
+  const W = 1400, H_TREE = 260;
   const layouts = layoutTreemap(tree, PAD, PAD, W - PAD * 2, H_TREE - PAD * 2);
 
   const handleGroupHover = (
@@ -134,7 +134,7 @@ export function HCPTreeMap({ selectedWeek }: Props) {
       <svg
         ref={svgRef}
         viewBox={`0 0 ${W} ${H_TREE}`}
-        style={{ width: "100%", flex: 1, minHeight: 0 }}
+        style={{ width: "100%", height: "100%" }}
         onMouseLeave={() => setTooltip(null)}
       >
         {layouts.map((cell) => {
@@ -248,7 +248,7 @@ export function HCPTreeMap({ selectedWeek }: Props) {
       {tooltip && (
         <div style={{
           position: "absolute",
-          left: Math.min(tooltip.x + 12, W - 180),
+          left: Math.min(tooltip.x + 12, W - 240),
           top: Math.min(tooltip.y + 8, H_TREE - 120),
           background: T.bgCard,
           border: `1px solid ${tooltip.group.color}33`,

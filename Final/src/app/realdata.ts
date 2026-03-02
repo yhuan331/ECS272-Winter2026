@@ -587,3 +587,16 @@ export function buildHCPTree(
     }))
     .sort((a, b) => b.value - a.value);
 }
+
+// ── Summary stats for WeekInfoPanel ──────────────────────────────────────────
+export function getPatientSummary() {
+  const avgRiskAll = weeklyData.length
+    ? ((weeklyData.reduce((s, d) => s + d.riskScore, 0) / weeklyData.length) * 100).toFixed(1)
+    : "0";
+  const peakWeek = weeklyData.length
+    ? weeklyData.reduce((max, d) => d.riskScore > max.riskScore ? d : max, weeklyData[0])
+    : null;
+  const totalNotes = weeklyData.reduce((s, d) => s + d.noteFrequency, 0);
+  const avgNotes = weeklyData.length ? (totalNotes / weeklyData.length).toFixed(1) : "0";
+  return { avgRiskAll, peakWeek, avgNotes };
+}
