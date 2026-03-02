@@ -26,7 +26,8 @@ export default function App() {
     initRealData("/temporal_networks.json", "/full_va_export_with_linear.json").then(() => {
       setFocusId(selectedPatientId);
       setReady(true);
-      Promise.all([nanSafe("/temporal_networks.json"), nanSafe("/full_va_export_with_ego.json")])
+      Promise.all([nanSafe("/temporal_networks.json"), nanSafe("/full_va_export_with_linear.json")])
+
         .then(([t, e]) => {
           _temporal = t as Record<string,unknown>;
           if (Array.isArray(e)) {
