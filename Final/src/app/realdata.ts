@@ -455,3 +455,125 @@ export function switchPatient(
     (max, w) => Math.max(max, w.weeklyHCPSnapshot?.length ?? 0), 0
   ) ?? 0;
 }
+
+// ─────────────────────────────────────────────
+// HCP TAXONOMY  (node_attr_vocabs.json grouping)
+// ─────────────────────────────────────────────
+
+export type HCPLevel1 =
+  | "Ancillary" | "Dietary" | "Emergency Medicine" | "Family Practice"
+  | "General Practice" | "Internal Medicine" | "Internal Medicine Specialty"
+  | "Medical Oncology" | "Mental Health" | "Nursing" | "Pathology"
+  | "Patient Support Services" | "Pediatrics" | "Pharmacy"
+  | "Radiation Oncology" | "Radiology" | "Scribe" | "Specialty Other"
+  | "Surgery Other" | "Surgical Oncology" | "Therapy" | "Urgent Care" | "Unknown";
+
+const SPECIALTY_TO_L1: Record<string, HCPLevel1> = {
+  "EMERGENCY MEDICINE": "Emergency Medicine", "PEDIATRIC EMERGENCY": "Emergency Medicine",
+  "FAMILY PRACTICE": "Family Practice",
+  "GENERAL PRACTICE": "General Practice",
+  "INTERNAL MEDICINE": "Internal Medicine", "HOSPITALIST": "Internal Medicine",
+  "GERIATRIC MED, INT": "Internal Medicine", "GERIATRIC MEDICINE": "Internal Medicine",
+  "ALLERGY": "Internal Medicine Specialty", "ALLERGIST/IMMUNOLOGY": "Internal Medicine Specialty",
+  "CARDIOLOGY": "Internal Medicine Specialty", "CARDIOVASCULAR DIS": "Internal Medicine Specialty",
+  "ENDOCRINOLOGY/METABO": "Internal Medicine Specialty", "GASTROENTEROLOGY": "Internal Medicine Specialty",
+  "HEMATOLOGY": "Internal Medicine Specialty", "INFECTIOUS DISEASE": "Internal Medicine Specialty",
+  "NEPHROLOGY": "Internal Medicine Specialty", "PULMONARY DISEASE": "Internal Medicine Specialty",
+  "RHEUMATOLOGY": "Internal Medicine Specialty",
+  "HEMATOLOGY/ONCOLOGY": "Medical Oncology", "ONCOLOGY, INT": "Medical Oncology",
+  "RADIATION ONCOLOGY": "Radiation Oncology",
+  "PSYCHIATRY": "Mental Health", "CHILD/ADOLESCENT PSY": "Mental Health", "INTERNAL MED/PSY": "Mental Health",
+  "NURSE PRACTITIONER": "Nursing", "PHYSICIAN ASSISTANT": "Nursing",
+  "PATHOLOGY": "Pathology", "BLOOD BANKING": "Pathology", "DERMATOPATHOLOGY,DER": "Pathology",
+  "DIAGNOSTIC RADIOLOGY": "Radiology", "NUCLEAR RADIOLOGY": "Radiology",
+  "RADIOLOGY": "Radiology", "VASC/INTRVN RADIOLOG": "Radiology",
+  "SURGERY": "Surgical Oncology", "SURGERY/ONCOLOGY": "Surgical Oncology",
+  "GYNECOLOGIC ONCOLOGY": "Surgical Oncology", "COLON/RECTAL SURG": "Surgical Oncology",
+  "CARDIOTHORACIC SURG": "Surgical Oncology", "ORTHOPAEDIC SURGERY": "Surgical Oncology",
+  "PLASTIC SURGERY": "Surgical Oncology", "UROLOGY": "Surgical Oncology",
+  "ANESTHESIOLOGISTS": "Surgical Oncology", "SURGERY CRIT CARE": "Surgical Oncology",
+  "SURG/CARDIOVASCULAR": "Surgical Oncology", "THORACIC SURGERY": "Surgical Oncology",
+  "CRIT CARE MED, ANES": "Surgical Oncology",
+  "ORTHOPAEDIC TRAUMA": "Surgery Other", "HAND SURG, PLAST SUR": "Surgery Other",
+  "OTOLARYNGOLOGY": "Surgery Other", "OPHTHALMOLOGY": "Surgery Other",
+  "GEN VASCULAR SURG": "Surgery Other", "TRAUMA ACS": "Surgery Other",
+  "TRANSPLANT SURGERY": "Surgery Other",
+  "DERMATOLOGY": "Specialty Other", "NEUROLOGY": "Specialty Other",
+  "OBSTETRICS/GYN": "Specialty Other", "PAIN MANAGEMENT": "Specialty Other",
+  "PMR": "Specialty Other", "SPORTS MEDICINE": "Specialty Other",
+  "VASCULAR MEDICINE": "Specialty Other", "CLN NEUROPHYSIOLOGY": "Specialty Other",
+  "URGENT CARE": "Urgent Care",
+};
+
+const PROV_TYPE_TO_L1: Record<string, HCPLevel1> = {
+  "*PHYSICIAN: RESIDENT": "Internal Medicine", "*PHYSICIAN: FELLOW": "Internal Medicine",
+  "*PHYSICIAN: FACULTY": "Internal Medicine", "*PHYSICIAN: INTERN": "Internal Medicine",
+  "PHYSICIAN": "Internal Medicine",
+  ".NURSE: (RN OR LVN)": "Nursing", ".NURSE: CLINICAL SPECIALIST": "Nursing", "PA/NP": "Nursing",
+  "PHARM TECH": "Pharmacy",
+  ".DC PLNG/CASE MGMT": "Patient Support Services", "HIM (CDS)": "Patient Support Services",
+};
+
+const CLINICIAN_TITLE_TO_L1: Record<string, HCPLevel1> = {
+  "MD": "Internal Medicine", "RN": "Nursing", "NP": "Nursing",
+  "PHARM TECH": "Pharmacy", "PA": "Nursing", "CASE MANAGER": "Patient Support Services",
+};
+
+export function classifyHCP(specialty: string, providerType: string, clinicianTitle: string): HCPLevel1 {
+  const sp = (specialty ?? "").toUpperCase().trim();
+  const pt = (providerType ?? "").toUpperCase().trim();
+  const ct = (clinicianTitle ?? "").toUpperCase().trim();
+  return SPECIALTY_TO_L1[sp] ?? PROV_TYPE_TO_L1[pt] ?? CLINICIAN_TITLE_TO_L1[ct] ?? "Unknown";
+}
+
+export const L1_COLORS: Record<string, string> = {
+  "Surgical Oncology":           "#FF6B6B",
+  "Medical Oncology":            "#FF9A3C",
+  "Radiation Oncology":          "#FFD166",
+  "Internal Medicine Specialty": "#4FFFB0",
+  "Internal Medicine":           "#6B9FFF",
+  "Nursing":                     "#A78BFA",
+  "Pharmacy":                    "#F472B6",
+  "Radiology":                   "#38BDF8",
+  "Patient Support Services":    "#34D399",
+  "Pathology":                   "#FB923C",
+  "Surgery Other":               "#F87171",
+  "Specialty Other":             "#94A3B8",
+  "Mental Health":               "#C084FC",
+  "Therapy":                     "#86EFAC",
+  "Emergency Medicine":          "#FCA5A5",
+  "Family Practice":             "#FDE68A",
+  "General Practice":            "#D9F99D",
+  "Pediatrics":                  "#FBB6CE",
+  "Urgent Care":                 "#E9D5FF",
+  "Ancillary":                   "#CBD5E1",
+  "Dietary":                     "#D1FAE5",
+  "Scribe":                      "#E2E8F0",
+  "Unknown":                     "#334155",
+};
+
+// Build treemap data from a list of HCP snapshots
+export interface TreeLeaf { name: string; value: number; color: string; specialty: string; }
+export interface TreeGroup { name: string; value: number; color: string; children: TreeLeaf[]; }
+
+export function buildHCPTree(
+  snapshots: Array<{ specialty: string; providerType: string; clinicianTitle?: string }>
+): TreeGroup[] {
+  const groups: Record<string, Record<string, number>> = {};
+  for (const h of snapshots) {
+    const l1 = classifyHCP(h.specialty, h.providerType, h.clinicianTitle ?? "");
+    const sp = h.specialty && h.specialty !== "UNKNOWN" ? h.specialty : (h.providerType ?? "UNKNOWN");
+    if (!groups[l1]) groups[l1] = {};
+    groups[l1][sp] = (groups[l1][sp] ?? 0) + 1;
+  }
+  return Object.entries(groups)
+    .map(([l1, specs]) => ({
+      name: l1,
+      value: Object.values(specs).reduce((a, b) => a + b, 0),
+      color: L1_COLORS[l1] ?? "#334155",
+      children: Object.entries(specs).map(([sp, count]) => ({
+        name: sp, value: count, color: L1_COLORS[l1] ?? "#334155", specialty: sp,
+      })).sort((a, b) => b.value - a.value),
+    }))
+    .sort((a, b) => b.value - a.value);
+}

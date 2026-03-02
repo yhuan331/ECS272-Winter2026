@@ -45,7 +45,12 @@ interface TooltipInfo {
   data: WeekData;
 }
 
-export function RadialGlyph() {
+interface RadialProps {
+  selectedWeek: number | null;
+  onSelectWeek: (week: number | null) => void;
+}
+
+export function RadialGlyph({ selectedWeek, onSelectWeek }: RadialProps) {
   const [hovered, setHovered] = useState<TooltipInfo | null>(null);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -286,17 +291,19 @@ export function RadialGlyph() {
         {/* Spikes */}
         {spikePaths.map((s, i) => {
           const isHovered = hoveredIdx === i;
+          const isWeekSelected = selectedWeek !== null && weeklyData[i]?.week === selectedWeek;
           return (
             <g key={i}>
-              {isHovered && (
-                <path d={s.path} fill={s.d.spikeColor} opacity={0.35} filter="url(#hoverGlow)" />
+              {(isHovered || isWeekSelected) && (
+                <path d={s.path} fill={s.d.spikeColor} opacity={isWeekSelected ? 0.5 : 0.35} filter="url(#hoverGlow)" />
               )}
               <path
                 d={s.path}
                 fill={`url(#spikeGrad${i})`}
                 stroke={s.d.spikeColor}
-                strokeWidth={isHovered ? 1 : 0.4}
-                strokeOpacity={isHovered ? 0.9 : 0.4}
+                strokeWidth={isHovered || isWeekSelected ? 1.5 : 0.4}
+                strokeOpacity={isHovered || isWeekSelected ? 1 : 0.4}
+                opacity={selectedWeek !== null && !isWeekSelected ? 0.35 : 1}
               />
             </g>
           );
@@ -313,6 +320,7 @@ export function RadialGlyph() {
             onMouseEnter={(e) => handleSpikeHover(i, e)}
             onMouseMove={(e) => handleSpikeHover(i, e)}
             onMouseLeave={handleSpikeLeave}
+            onClick={() => onSelectWeek(weeklyData[i]?.week === selectedWeek ? null : weeklyData[i]?.week ?? null)}
           />
         ))}
 
