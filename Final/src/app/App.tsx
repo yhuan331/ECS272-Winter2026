@@ -23,7 +23,7 @@ export default function App() {
   const [hoveredData, setHoveredData]   = useState<WeekData|null>(null);
 
   useEffect(() => {
-    initRealData("/temporal_networks.json", "/full_va_export_with_ego.json").then(() => {
+    initRealData("/temporal_networks.json", "/full_va_export_with_linear.json").then(() => {
       setFocusId(selectedPatientId);
       setReady(true);
       Promise.all([nanSafe("/temporal_networks.json"), nanSafe("/full_va_export_with_ego.json")])

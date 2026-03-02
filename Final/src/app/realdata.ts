@@ -129,10 +129,16 @@ type TemporalRecord = {
 type EgoWeek = {
   week: number;
   prob: number;
-  careTeamSize: number;
+  probDelta: number;
+  teamSize: number;          // was careTeamSize
   entropy: number;
-  topAttributesSHAP: Array<{ feature: string; contribution: number }>;
-  weeklyHCPSnapshot: Array<{ specialty: string; providerType: string }>;
+  topContrib: Array<{        // was topAttributesSHAP
+    feature: string;
+    contribution: number;
+    weight: number;
+    value: number;
+  }>;
+  weeklyHCPSnapshot: Array<{ specialty: string; providerType: string; clinicianTitle: string }>;
 };
 
 type EgoRecord = {
@@ -158,7 +164,7 @@ function detectSurgeonWeeks(weekly: EgoWeek[]): number[] {
   return weekly
     .filter((w) => {
       // Check SHAP features
-      const shapHit = w.topAttributesSHAP.some(
+      const shapHit = (w.topContrib ?? []).some(
         (s) =>
           s.contribution >= SHAP_THRESHOLD &&
           SURGERY_KEYWORDS.some((kw) => s.feature.toUpperCase().includes(kw))
@@ -186,6 +192,8 @@ function buildWeeklyData(
 ): WeekData[] {
   const { weekly } = egoRecord;
 
+  
+
   // Build note-per-week map from temporal_networks node_note
   const notesByWeek: Record<number, number> = {};
   if (temporalRecord?.node_note) {
@@ -208,7 +216,7 @@ function buildWeeklyData(
     const probDelta = w.prob - prevProb;  // positive = risk rising, negative = falling
 
     // Top positive and negative SHAP features → readable summary
-    const shap = w.topAttributesSHAP ?? [];
+    const shap = w.topContrib ?? [];
     const topPos = shap
       .filter((s) => s.contribution > 0)
       .sort((a, b) => b.contribution - a.contribution)[0];
@@ -253,7 +261,7 @@ function buildWeeklyData(
       week:             w.week,
       riskScore,
       probDelta,
-      teamSize:         w.careTeamSize,
+      teamSize: w.teamSize,
       // Color encodes DIRECTION of change:
       //   rising  (delta > +0.5%)  → red spectrum  (alarming)
       //   falling (delta < -0.5%)  → green spectrum (improving)
@@ -263,7 +271,7 @@ function buildWeeklyData(
         if (probDelta < -0.005) return riskColor(Math.max(0, 0.3 - Math.abs(probDelta) * 8)); // green
         return riskColor(0.45); // amber = stable
       })(),
-      hcpCount:         snapshot.length || w.careTeamSize,
+      hcpCount:         snapshot.length || w.teamSize,
       noteFrequency:    notesByWeek[w.week] ?? 0,
       attributeSummary,
       hcpNames,
@@ -329,9 +337,9 @@ function buildPatients(
     // avgRisk as percentage
     const avgRisk = Math.round(avgProb * 1000) / 10;
 
-    // maxTeam = max careTeamSize
+    // maxTeam = max teamSize
     const maxTeam = egoRec
-      ? Math.max(...egoRec.weekly.map((w) => w.careTeamSize), 0)
+      ? Math.max(...egoRec.weekly.map((w) => w.teamSize), 0)
       : rec.node_counter;
 
     // density = edge_counter / node_counter * 100, capped at 100
@@ -376,7 +384,7 @@ async function fetchJSON(path: string): Promise<unknown> {
 
 export async function initRealData(
   temporalPath = "/temporal_networks.json",
-  egoPath      = "/full_va_export_with_ego.json",
+  egoPath      = "/full_va_export_with_linear.json",
   focusPatientId?: string,
 ): Promise<void> {
   const [temporalRaw, egoRaw] = await Promise.all([

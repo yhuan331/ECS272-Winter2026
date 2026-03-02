@@ -331,7 +331,6 @@ export function RadialGlyph({ selectedWeek, onSelectWeek, onHoverWeek }: RadialP
               if (!w) return;
               const isAlreadyPinned = selectedWeek === w.week;
               onSelectWeek(isAlreadyPinned ? null : w.week);
-              setPinned(isAlreadyPinned ? null : w);
             }}
           />
         ))}
@@ -444,10 +443,9 @@ export function WeekPanel({ data, pinned }: { data: WeekData; pinned?: boolean }
       </div>
 
       {/* Stats grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "4px 12px", marginBottom: 8 }}>
-        <Stat label="RISK (RAW)" value={`${((data.riskScore)*100).toFixed(1)}%`} color={data.spikeColor} />
-        <Stat label="RISK (NORM)" value={`${(data.riskScore*100).toFixed(1)}%`} color="#94A3B8" />
-        <Stat label="TEAM SIZE" value={String(data.teamSize)} color="#6B9FFF" />
+     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "4px 12px", marginBottom: 8 }}>
+        <Stat label="GNN SCORE" value={`${(data.riskScore * 100).toFixed(1)}%`} color={data.spikeColor} />
+        <Stat label="TEAM SIZE" value={String(data.teamSize ?? "—")} color="#6B9FFF" />
         <Stat label="ENTROPY" value={data.entropy?.toFixed(2) ?? "—"} color="#A78BFA" />
       </div>
 
@@ -464,28 +462,40 @@ export function WeekPanel({ data, pinned }: { data: WeekData; pinned?: boolean }
         </div>
 
         {/* SHAP features */}
-        <div>
+       <div>
           <div style={{ color: T.textSecondary, fontSize: 10, fontWeight: 700, marginBottom: 2, letterSpacing: 1 }}>
-            SHAP CONTRIBUTIONS ({data.topSHAP?.length ?? 0} features)
+            TOP ATTRIBUTES ({data.topSHAP?.length ?? 0})
           </div>
           <div style={{ color: T.textMuted, fontSize: 8, marginBottom: 4 }}>
-            red = raises risk · green = lowers risk
+            red = raises survival score · green = lowers
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-            {(data.topSHAP ?? []).map((s, si) => {
-              const pct = (s.contribution * 100).toFixed(2);
+            {(data.topSHAP ?? []).slice(0, 10).map((s, si) => {
               const isPos = s.contribution >= 0;
+              // Parse feature name: "FIELD::VALUE::type" → readable label
               const parts = s.feature.split("::");
-              const label = (parts[1] ?? parts[0]).replace(/^\*/, "").slice(0, 22);
-              const barW = Math.min(50, Math.abs(s.contribution) * 500);
+              const field = (parts[0] ?? "").replace(/_/g, " ").replace("ACCESS USER ", "").toLowerCase();
+              const value = (parts[1] ?? "").replace(/^\*/, "").toLowerCase();
+              const label = `${field}: ${value}`.slice(0, 28);
+              const barW = Math.min(60, Math.abs(s.contribution) * 30);
               return (
                 <div key={si} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <span style={{ color: T.textSecondary, fontSize: 10, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <span style={{
+                    color: T.textSecondary, fontSize: 10, flex: 1,
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
+                  }}>
                     {label}
                   </span>
-                  <div style={{ width: barW, height: 3, borderRadius: 2, background: isPos ? '#E53E3E' : '#38A169', opacity: 0.8, flexShrink: 0 }}/>
-                  <span style={{ color: isPos ? '#E53E3E' : '#38A169', fontSize: 10, fontWeight: 700, minWidth: 38, textAlign: "right" }}>
-                    {isPos ? "+" : ""}{pct}%
+                  <div style={{
+                    width: barW, height: 3, borderRadius: 2,
+                    background: isPos ? '#E53E3E' : '#38A169',
+                    opacity: 0.8, flexShrink: 0
+                  }}/>
+                  <span style={{
+                    color: isPos ? '#E53E3E' : '#38A169',
+                    fontSize: 10, fontWeight: 700, minWidth: 42, textAlign: "right"
+                  }}>
+                    {isPos ? "+" : ""}{s.contribution.toFixed(3)}
                   </span>
                 </div>
               );
