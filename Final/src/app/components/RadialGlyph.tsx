@@ -20,7 +20,7 @@ import { T } from "../theme";
 
 const FONT = T.font;
 const CX = 350;
-const CY = 350;
+const CY = 280;
 const BASE_R = 130;
 const CENTER_R = 110;
 const SIZE = 700;
@@ -521,7 +521,14 @@ export function WeekPanel({ data, pinned, mode }: { data: WeekData; pinned?: boo
           />
         )}
         <Stat label="TEAM SIZE" value={String(data.teamSize ?? "—")} color="#6B9FFF" />
-        <Stat label="ENTROPY"   value={data.entropy?.toFixed(2) ?? "—"} color="#A78BFA" />
+        <Stat
+          label="CARE DIVERSITY (Entropy)"
+          value={
+            data.entropy == null ? "—"
+            : `${data.entropy.toFixed(2)} · ${data.entropy < 1.5 ? "LOW" : data.entropy < 2.5 ? "MED" : "HIGH"}`
+          }
+          color="#A78BFA"
+        />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -547,11 +554,11 @@ export function WeekPanel({ data, pinned, mode }: { data: WeekData; pinned?: boo
               const parts = s.feature.split("::");
               const field = (parts[0] ?? "").replace(/_/g, " ").replace("ACCESS USER ", "").toLowerCase();
               const value = (parts[1] ?? "").replace(/^\*/, "").toLowerCase();
-              const label = `${field}: ${value}`.slice(0, 28);
+              const label = `${field}: ${value}`;
               const barW  = Math.min(60, Math.abs(s.contribution) * 30);
               return (
-                <div key={si} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                  <span style={{ color: T.textSecondary, fontSize: 12, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+                <div key={si} style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 4 }}>
+                  <span style={{ color: T.textSecondary, fontSize: 11, flex: 1, wordBreak: "break-word", lineHeight: 1.4 }}>{label}</span>
                   <div style={{ width: barW, height: 6, borderRadius: 3, background: isPos ? '#E53E3E' : '#38A169', opacity: 0.8, flexShrink: 0 }} />
                   <span style={{ color: isPos ? '#E53E3E' : '#38A169', fontSize: 12, fontWeight: 700, minWidth: 52, textAlign: "right" }}>
                     {isPos ? "+" : ""}{s.contribution.toFixed(3)}
