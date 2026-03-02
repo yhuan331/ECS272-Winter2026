@@ -47,9 +47,9 @@ export interface WeekData {
 }
 
 export const cancerColors: Record<PatientDot["cancer"], string> = {
-  breast: "#4FFFB0",
-  colon:  "#FF6B6B",
-  lung:   "#6B9FFF",
+  breast: "#0694A2",
+  colon:  "#E53E3E",
+  lung:   "#2B6CB0",
 };
 
 // ─────────────────────────────────────────────
@@ -75,12 +75,11 @@ function lerpColor(a: string, b: string, t: number): string {
 }
 
 const RISK_GRADIENT = [
-  { t: 0.0,  color: "#6BC96B" },
-  { t: 0.3,  color: "#C8D966" },
-  { t: 0.45, color: "#FFD166" },
-  { t: 0.6,  color: "#FF9A3C" },
-  { t: 0.75, color: "#FF4757" },
-  { t: 1.0,  color: "#FF4757" },
+  { t: 0.0,  color: "#38A169" },
+  { t: 0.3,  color: "#D69E2E" },
+  { t: 0.5,  color: "#DD6B20" },
+  { t: 0.75, color: "#E53E3E" },
+  { t: 1.0,  color: "#9B2335" },
 ];
 
 function riskColor(t: number): string {

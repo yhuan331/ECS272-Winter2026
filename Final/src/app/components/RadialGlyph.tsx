@@ -17,14 +17,11 @@
  */
 
 import { useState, useRef, useCallback } from "react";
-import {
-  weeklyData,
-  surgeonEvents,
-  totalPatientHCP,
-} from "../realData";
+import { weeklyData, surgeonEvents, totalPatientHCP } from "../realData";
 import type { WeekData } from "../realData";
+import { T } from "../theme";
 
-const FONT = "'Space Mono', monospace";
+const FONT = T.font;
 const CX = 350;
 const CY = 350;
 const BASE_R = 130;
@@ -53,10 +50,11 @@ interface RadialProps {
 export function RadialGlyph({ selectedWeek, onSelectWeek }: RadialProps) {
   const [hovered, setHovered] = useState<TooltipInfo | null>(null);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const [pinned, setPinned] = useState<WeekData | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
   if (!weeklyData.length) return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#2A3040", fontFamily: FONT, fontSize: 12, letterSpacing: 2 }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: T.textFaint, fontFamily: FONT, fontSize: 12, letterSpacing: 2 }}>
       SELECT A PATIENT
     </div>
   );
@@ -133,9 +131,9 @@ export function RadialGlyph({ selectedWeek, onSelectWeek }: RadialProps) {
 
   // Center disc segments
   const segments = [
-    { fill: "#1A2535", startAngle: -90, endAngle: 0 },
-    { fill: "#1E2D20", startAngle: 0, endAngle: 90 },
-    { fill: "#1E1E2D", startAngle: 90, endAngle: 270 },
+    { fill: "#EEF2FF", startAngle: -90, endAngle: 0 },
+    { fill: "#F0FFF4", startAngle: 0, endAngle: 90 },
+    { fill: "#FFFBEB", startAngle: 90, endAngle: 270 },
   ];
 
   // Week 0 and last week annotations
@@ -176,19 +174,22 @@ export function RadialGlyph({ selectedWeek, onSelectWeek }: RadialProps) {
   }, []);
 
   return (
-    <div
-      style={{
-        position: "relative",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        height: "100%",
-      }}
-    >
+    <div style={{
+      display: "flex",
+      flexDirection: "column",
+      height: "100%",
+      position: "relative",
+      background: T.bgCard,
+      border: `1px solid ${T.border}`,
+      borderRadius: 10,
+      boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+    }}>
+      {/* SVG takes ~65% of height */}
+      <div style={{ flex: "0 0 62%", minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <svg
         ref={svgRef}
         viewBox={`0 0 ${SIZE} ${SIZE}`}
-        style={{ width: "100%", maxWidth: 560, height: "100%", maxHeight: 560 }}
+        style={{ width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%" }}
       >
         <defs>
           {spikePaths.map((s, i) => (
@@ -236,7 +237,7 @@ export function RadialGlyph({ selectedWeek, onSelectWeek }: RadialProps) {
               y1={CY}
               x2={p.x}
               y2={p.y}
-              stroke="#252A35"
+              stroke={T.border}
               strokeWidth={1}
             />
           );
@@ -248,8 +249,8 @@ export function RadialGlyph({ selectedWeek, onSelectWeek }: RadialProps) {
           const vp = polarToCart(CX, CY, CENTER_R * 0.62, -45);
           return (
             <g>
-              <text x={lp.x} y={lp.y - 3} textAnchor="middle" dominantBaseline="central" fill="#64748B" fontSize={6} fontFamily={FONT}>TOTAL HCP</text>
-              <text x={vp.x} y={vp.y + 3} textAnchor="middle" dominantBaseline="central" fill="#6B9FFF" fontSize={14} fontFamily={FONT} fontWeight={700}>{totalPatientHCP}</text>
+              <text x={lp.x} y={lp.y - 3} textAnchor="middle" dominantBaseline="central" fill={T.textMuted} fontSize={9} fontFamily={FONT}>TOTAL HCP</text>
+              <text x={vp.x} y={vp.y + 3} textAnchor="middle" dominantBaseline="central" fill="#2B6CB0" fontSize={16} fontFamily={FONT} fontWeight={700}>{totalPatientHCP}</text>
             </g>
           );
         })()}
@@ -260,8 +261,8 @@ export function RadialGlyph({ selectedWeek, onSelectWeek }: RadialProps) {
           const vp = polarToCart(CX, CY, CENTER_R * 0.62, 45);
           return (
             <g>
-              <text x={lp.x} y={lp.y - 3} textAnchor="middle" dominantBaseline="central" fill="#64748B" fontSize={6} fontFamily={FONT}>NOTE FREQ</text>
-              <text x={vp.x} y={vp.y + 3} textAnchor="middle" dominantBaseline="central" fill="#4FFFB0" fontSize={11} fontFamily={FONT} fontWeight={700}>{avgNotes}/wk</text>
+              <text x={lp.x} y={lp.y - 3} textAnchor="middle" dominantBaseline="central" fill={T.textMuted} fontSize={9} fontFamily={FONT}>NOTE FREQ</text>
+              <text x={vp.x} y={vp.y + 3} textAnchor="middle" dominantBaseline="central" fill="#38A169" fontSize={13} fontFamily={FONT} fontWeight={700}>{avgNotes}/wk</text>
             </g>
           );
         })()}
@@ -271,10 +272,10 @@ export function RadialGlyph({ selectedWeek, onSelectWeek }: RadialProps) {
           const lp = polarToCart(CX, CY, CENTER_R * 0.32, 180);
           return (
             <g>
-              <text x={lp.x} y={lp.y - 12} textAnchor="middle" dominantBaseline="central" fill="#64748B" fontSize={6} fontFamily={FONT}>ATTR SUMMARY</text>
-              <text x={lp.x} y={lp.y + 1} textAnchor="middle" dominantBaseline="central" fill="#FFD166" fontSize={8} fontFamily={FONT}>Avg Risk {avgRiskAll}%</text>
+              <text x={lp.x} y={lp.y - 12} textAnchor="middle" dominantBaseline="central" fill={T.textMuted} fontSize={9} fontFamily={FONT}>ATTR SUMMARY</text>
+              <text x={lp.x} y={lp.y + 1} textAnchor="middle" dominantBaseline="central" fill="#D69E2E" fontSize={11} fontFamily={FONT}>Avg Risk {avgRiskAll}%</text>
               {peakWeek && (
-                <text x={lp.x} y={lp.y + 12} textAnchor="middle" dominantBaseline="central" fill="#94A3B8" fontSize={6} fontFamily={FONT}>
+                <text x={lp.x} y={lp.y + 12} textAnchor="middle" dominantBaseline="central" fill={T.textSecondary} fontSize={9} fontFamily={FONT}>
                   Peak w{peakWeek.week} @ {(peakWeek.riskScore * 100).toFixed(0)}%
                 </text>
               )}
@@ -283,10 +284,10 @@ export function RadialGlyph({ selectedWeek, onSelectWeek }: RadialProps) {
         })()}
 
         {/* Center hole */}
-        <circle cx={CX} cy={CY} r={HOLE_R} fill="#0D0F14" />
+        <circle cx={CX} cy={CY} r={HOLE_R} fill={T.bgCard} />
 
         {/* Base ring */}
-        <circle cx={CX} cy={CY} r={BASE_R} fill="none" stroke="#2A3040" strokeWidth={1.5} />
+        <circle cx={CX} cy={CY} r={BASE_R} fill="none" stroke={T.borderMid} strokeWidth={1.5} />
 
         {/* Spikes */}
         {spikePaths.map((s, i) => {
@@ -320,12 +321,18 @@ export function RadialGlyph({ selectedWeek, onSelectWeek }: RadialProps) {
             onMouseEnter={(e) => handleSpikeHover(i, e)}
             onMouseMove={(e) => handleSpikeHover(i, e)}
             onMouseLeave={handleSpikeLeave}
-            onClick={() => onSelectWeek(weeklyData[i]?.week === selectedWeek ? null : weeklyData[i]?.week ?? null)}
+            onClick={() => {
+              const w = weeklyData[i];
+              if (!w) return;
+              const isAlreadyPinned = selectedWeek === w.week;
+              onSelectWeek(isAlreadyPinned ? null : w.week);
+              setPinned(isAlreadyPinned ? null : w);
+            }}
           />
         ))}
 
         {/* Orbit glow */}
-        <path d={orbitPath} fill="none" stroke="#FF6B6B" strokeWidth={6} opacity={0.2} filter="url(#orbitGlow)" />
+        <path d={orbitPath} fill="none" stroke="#E53E3E" strokeWidth={6} opacity={0.12} filter="url(#orbitGlow)" />
 
         {/* Orbit colored segments */}
         {orbitPoints.map((p, i) => {
@@ -337,7 +344,7 @@ export function RadialGlyph({ selectedWeek, onSelectWeek }: RadialProps) {
         })}
 
         {/* Shimmer */}
-        <path d={orbitPath} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={0.8} />
+        <path d={orbitPath} fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth={0.8} />
 
         {/* Hover orbit highlight */}
         {hoveredIdx !== null && hoveredIdx > 0 && (
@@ -346,8 +353,8 @@ export function RadialGlyph({ selectedWeek, onSelectWeek }: RadialProps) {
             y1={orbitPoints[hoveredIdx - 1].y}
             x2={orbitPoints[hoveredIdx].x}
             y2={orbitPoints[hoveredIdx].y}
-            stroke="#fff"
-            strokeWidth={3}
+            stroke={T.textPrimary}
+            strokeWidth={2}
             strokeLinecap="round"
             opacity={0.5}
           />
@@ -360,17 +367,17 @@ export function RadialGlyph({ selectedWeek, onSelectWeek }: RadialProps) {
             const inner = polarToCart(CX, CY, BASE_R - 5, angle);
             const outer = polarToCart(CX, CY, spikePaths[hoveredIdx].outerR + 14, angle);
             return (
-              <line x1={inner.x} y1={inner.y} x2={outer.x} y2={outer.y} stroke="rgba(255,255,255,0.3)" strokeWidth={0.8} strokeDasharray="3,3" />
+              <line x1={inner.x} y1={inner.y} x2={outer.x} y2={outer.y} stroke="rgba(0,0,0,0.2)" strokeWidth={0.8} strokeDasharray="3,3" />
             );
           })()}
 
         {/* Week 0 annotation */}
-        <line x1={w0Start.x} y1={w0Start.y} x2={w0End.x} y2={w0End.y} stroke="#94A3B8" strokeWidth={1} strokeDasharray="4,4" />
-        <text x={w0Label.x} y={w0Label.y} textAnchor="middle" fill="#94A3B8" fontSize={8} fontFamily={FONT}>week 0</text>
+        <line x1={w0Start.x} y1={w0Start.y} x2={w0End.x} y2={w0End.y} stroke={T.textMuted} strokeWidth={1} strokeDasharray="4,4" />
+        <text x={w0Label.x} y={w0Label.y} textAnchor="middle" fill={T.textSecondary} fontSize={10} fontFamily={FONT}>week 0</text>
 
         {/* Last week annotation */}
-        <line x1={wLastStart.x} y1={wLastStart.y} x2={wLastEnd.x} y2={wLastEnd.y} stroke="#64748B" strokeWidth={1} strokeDasharray="4,4" />
-        <text x={wLastLabel.x} y={wLastLabel.y} textAnchor="middle" fill="#64748B" fontSize={7} fontFamily={FONT} dominantBaseline="central">
+        <line x1={wLastStart.x} y1={wLastStart.y} x2={wLastEnd.x} y2={wLastEnd.y} stroke={T.textFaint} strokeWidth={1} strokeDasharray="4,4" />
+        <text x={wLastLabel.x} y={wLastLabel.y} textAnchor="middle" fill={T.textMuted} fontSize={10} fontFamily={FONT} dominantBaseline="central">
           last week (w{numWeeks - 1})
         </text>
 
@@ -383,80 +390,112 @@ export function RadialGlyph({ selectedWeek, onSelectWeek }: RadialProps) {
           return <circle key={weekNum} cx={outer.x} cy={outer.y} r={3} fill="#FFD166" opacity={0.85} />;
         })}
       </svg>
+      </div>
 
-      {hovered && <WeekTooltip data={hovered.data} x={hovered.x} y={hovered.y} />}
+      {/* Info panel — fills remaining space below the glyph */}
+      <div style={{
+        flex: "1 1 0",
+        minHeight: 0,
+        overflowY: "auto",
+        padding: "8px 12px",
+        borderTop: `1px solid ${T.border}`,
+      }}>
+        {(pinned ?? hovered?.data)
+          ? <WeekPanel data={pinned ?? hovered!.data} pinned={!!pinned} />
+          : <EmptyPanel avgRiskAll={avgRiskAll} peakWeek={peakWeek} totalPatientHCP={totalPatientHCP} avgNotes={avgNotes} />
+        }
+      </div>
     </div>
   );
 }
 
-function WeekTooltip({ data, x, y }: { data: WeekData; x: number; y: number }) {
+// ── Empty state panel (no week hovered) ──────────────────────────────────────
+function EmptyPanel({ avgRiskAll, peakWeek, totalPatientHCP, avgNotes }: {
+  avgRiskAll: string; peakWeek: any; totalPatientHCP: number; avgNotes: string;
+}) {
+  return (
+    <div style={{ fontFamily: FONT }}>
+      <div style={{ color: T.textFaint, fontSize: 11, letterSpacing: 1.5, marginBottom: 8 }}>
+        HOVER A WEEK TO INSPECT
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 16px" }}>
+        <Stat label="AVG RISK" value={`${avgRiskAll}%`} color="#D69E2E" />
+        <Stat label="TOTAL HCP" value={String(totalPatientHCP)} color="#2B6CB0" />
+        <Stat label="NOTES / WK" value={avgNotes} color="#38A169" />
+        {peakWeek && <Stat label="PEAK WEEK" value={`W${peakWeek.week} · ${(peakWeek.riskScore*100).toFixed(0)}%`} color="#E53E3E" />}
+      </div>
+    </div>
+  );
+}
+
+// ── Week detail panel (shown in the space below glyph) ───────────────────────
+function WeekPanel({ data, pinned }: { data: WeekData; pinned?: boolean }) {
   const isSurgeonWeek = surgeonEvents.includes(data.week);
   return (
-    <div
-      style={{
-        position: "fixed",
-        left: x + 14,
-        top: y - 10,
-        background: "#151820",
-        border: "1px solid #252A35",
-        borderRadius: 8,
-        padding: "10px 14px",
-        fontFamily: FONT,
-        pointerEvents: "none",
-        zIndex: 100,
-        minWidth: 240,
-        maxWidth: 320,
-        boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
-      }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-        <span style={{ color: "#fff", fontSize: 11, fontWeight: 700 }}>WEEK {data.week}</span>
+    <div style={{ fontFamily: FONT }}>
+      {/* Header row */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+        <span style={{ color: T.textPrimary, fontSize: 14, fontWeight: 700 }}>WEEK {data.week}</span>
         {isSurgeonWeek && (
-          <span style={{ color: "#FFD166", fontSize: 8, background: "rgba(255,209,102,0.12)", padding: "2px 6px", borderRadius: 4 }}>
-            SURGEON EVENT
+          <span style={{ color: "#D69E2E", fontSize: 9, background: "#FFFBEB", padding: "2px 8px", borderRadius: 4, border: "1px solid #D69E2E44" }}>
+            ✦ SURGEON EVENT
           </span>
         )}
+        <span style={{ color: T.textFaint, fontSize: 9, marginLeft: "auto" }}>
+          {pinned
+            ? <span style={{ color:"#2B6CB0", background:"#EEF2FF", padding:"2px 8px", borderRadius:4, border:"1px solid #2B6CB044", fontSize:9 }}>📌 PINNED — click again to unpin</span>
+            : "hover or click spike to inspect"
+          }
+        </span>
       </div>
 
-      <Row label="RISK SCORE (RAW)" value={`${((data.rawProb ?? data.riskScore) * 100).toFixed(1)}%`} color={data.spikeColor} />
-      <Row label="RISK (NORMALIZED)" value={`${(data.riskScore * 100).toFixed(1)}%`} color="#94A3B8" />
-      <Row label="CARE TEAM SIZE" value={String(data.teamSize)} color="#6B9FFF" />
-      <Row label="NOTES THIS WEEK" value={String(data.noteFrequency)} color="#4FFFB0" />
-      <Row label="ENTROPY" value={data.entropy?.toFixed(3) ?? "—"} color="#94A3B8" />
+      {/* Stats grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "4px 12px", marginBottom: 8 }}>
+        <Stat label="RISK (RAW)" value={`${((data.rawProb ?? data.riskScore)*100).toFixed(1)}%`} color={data.spikeColor} />
+        <Stat label="RISK (NORM)" value={`${(data.riskScore*100).toFixed(1)}%`} color="#94A3B8" />
+        <Stat label="TEAM SIZE" value={String(data.teamSize)} color="#6B9FFF" />
+        <Stat label="ENTROPY" value={data.entropy?.toFixed(2) ?? "—"} color="#A78BFA" />
+      </div>
 
-      {data.hcpNames.length > 0 && (
-        <div style={{ borderTop: "1px solid #252A35", paddingTop: 5, marginTop: 3, marginBottom: 5 }}>
-          <div style={{ color: "#64748B", fontSize: 8, marginBottom: 3 }}>ACTIVE SPECIALTIES</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 8px" }}>
-            {data.hcpNames.slice(0, 8).map((name, ni) => (
-              <span key={ni} style={{ color: "#94A3B8", fontSize: 7.5 }}>{name}</span>
+      {/* Two columns: specialties + SHAP */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        {/* Specialties */}
+        <div>
+          <div style={{ color: T.textSecondary, fontSize: 10, fontWeight: 700, marginBottom: 4, letterSpacing: 1 }}>ACTIVE SPECIALTIES</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            {(data.hcpNames?.length ? data.hcpNames : ["—"]).slice(0, 10).map((name, ni) => (
+              <span key={ni} style={{ color: T.textSecondary, fontSize: 10, lineHeight: 1.6 }}>· {name}</span>
             ))}
           </div>
         </div>
-      )}
 
-      <div style={{ borderTop: "1px solid #252A35", paddingTop: 5, marginTop: 3 }}>
-        <div style={{ color: "#64748B", fontSize: 8, marginBottom: 2 }}>TOP DRIVERS</div>
-        <div style={{ color: "#CBD5E1", fontSize: 8, lineHeight: 1.5 }}>{data.attributeSummary}</div>
-      </div>
-
-      {data.topSHAP?.length > 0 && (
-        <div style={{ marginTop: 5 }}>
-          {data.topSHAP.slice(0, 5).map((s, si) => {
-            const pct = (s.contribution * 100).toFixed(1);
-            const isPos = s.contribution >= 0;
-            const label = s.feature.split("::")[1]?.replace(/^\*/, "").slice(0, 24) ?? s.feature.slice(0, 24);
-            return (
-              <div key={si} style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-                <span style={{ color: "#475569", fontSize: 7, maxWidth: 170, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
-                <span style={{ color: isPos ? "#FF6B6B" : "#4FFFB0", fontSize: 7, fontWeight: 700 }}>
-                  {isPos ? "+" : ""}{pct}%
-                </span>
-              </div>
-            );
-          })}
+        {/* SHAP features */}
+        <div>
+          <div style={{ color: T.textSecondary, fontSize: 10, fontWeight: 700, marginBottom: 4, letterSpacing: 1 }}>
+            SHAP DRIVERS ({data.topSHAP?.length ?? 0})
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            {(data.topSHAP ?? []).map((s, si) => {
+              const pct = (s.contribution * 100).toFixed(2);
+              const isPos = s.contribution >= 0;
+              const parts = s.feature.split("::");
+              const label = (parts[1] ?? parts[0]).replace(/^\*/, "").slice(0, 22);
+              const barW = Math.min(50, Math.abs(s.contribution) * 500);
+              return (
+                <div key={si} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ color: T.textSecondary, fontSize: 10, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {label}
+                  </span>
+                  <div style={{ width: barW, height: 3, borderRadius: 2, background: isPos ? '#E53E3E' : '#38A169', opacity: 0.8, flexShrink: 0 }}/>
+                  <span style={{ color: isPos ? '#E53E3E' : '#38A169', fontSize: 10, fontWeight: 700, minWidth: 38, textAlign: "right" }}>
+                    {isPos ? "+" : ""}{pct}%
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -466,6 +505,15 @@ function Row({ label, value, color }: { label: string; value: string; color: str
     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
       <span style={{ color: "#64748B", fontSize: 9 }}>{label}</span>
       <span style={{ color, fontSize: 10, fontWeight: 700 }}>{value}</span>
+    </div>
+  );
+}
+
+function Stat({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div>
+      <div style={{ color: T.textMuted, fontSize: 9, letterSpacing: 1, marginBottom: 2 }}>{label}</div>
+      <div style={{ color, fontSize: 13, fontWeight: 700, fontFamily: FONT }}>{value}</div>
     </div>
   );
 }

@@ -1,197 +1,132 @@
 import { useState } from "react";
-import { patients, cancerColors, type PatientDot } from "../realData";
+import { patients, type PatientDot } from "../realData";
+import { T, CANCER_COLORS } from "../theme";
 
-const FONT = "'Space Mono', monospace";
+const FONT = T.font;
 
-interface Props {
-  selectedId: string;
-  onSelectPatient: (id: string) => void;
-}
+interface Props { selectedId: string; onSelectPatient: (id:string)=>void; }
 
 export function ScatterPlot({ selectedId, onSelectPatient }: Props) {
-  const [hoverId, setHoverId] = useState<string | null>(null);
-  // Cohort filter
-  const [activeFilters, setActiveFilters] = useState<Set<string>>(
-    new Set(["breast", "colon", "lung"])
-  );
+  const [hoverId, setHoverId] = useState<string|null>(null);
+  const [activeFilters, setActiveFilters] = useState(new Set(["breast","colon","lung"]));
 
-  const pad = { top: 40, right: 24, bottom: 44, left: 44 };
-  const W = 520, H = 480;
-  const plotW = W - pad.left - pad.right;
-  const plotH = H - pad.top - pad.bottom;
+  const pad = { top:36, right:20, bottom:40, left:44 };
+  const W=520, H=460, plotW=W-pad.left-pad.right, plotH=H-pad.top-pad.bottom;
+  const maxTeam = Math.max(...patients.map(p=>p.maxTeam),1);
+  const selected = patients.find(p=>p.id===selectedId) ?? patients[0];
 
-  // Normalize maxTeam for opacity
-  const maxTeam = Math.max(...patients.map((p) => p.maxTeam), 1);
+  const toggle = (c:string) => setActiveFilters(prev => {
+    const n = new Set(prev);
+    if (n.has(c)) { if(n.size>1) n.delete(c); } else n.add(c);
+    return n;
+  });
 
-  const selected = patients.find((p) => p.id === selectedId) ?? patients[0];
-
-  const toggleFilter = (c: string) => {
-    setActiveFilters((prev) => {
-      const next = new Set(prev);
-      if (next.has(c)) { if (next.size > 1) next.delete(c); }
-      else next.add(c);
-      return next;
-    });
-  };
-
-  const visible = patients.filter((p) => activeFilters.has(p.cancer));
+  const visible = patients.filter(p=>activeFilters.has(p.cancer));
 
   return (
-    <div style={{
-      background: "#151820", border: "1px solid #252A35", borderRadius: 8,
-      padding: 16, height: "100%", display: "flex", flexDirection: "column",
-      fontFamily: FONT, position: "relative",
-    }}>
-      <div style={{ color: "#64748B", fontSize: 10, letterSpacing: 1.5, marginBottom: 6 }}>
+    <div style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:10,
+      padding:14, height:"100%", display:"flex", flexDirection:"column", fontFamily:FONT,
+      boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+
+      <div style={{ color:T.textMuted, fontSize:10, letterSpacing:1.5, marginBottom:8, fontWeight:700 }}>
         PATIENT COHORT OVERVIEW
       </div>
 
-      {/* Cohort toggle buttons */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-        {(["breast", "colon", "lung"] as const).map((c) => {
+      {/* Cohort toggles */}
+      <div style={{ display:"flex", gap:6, marginBottom:8 }}>
+        {(["breast","colon","lung"] as const).map(c => {
           const active = activeFilters.has(c);
-          const color = cancerColors[c];
+          const color = CANCER_COLORS[c];
           return (
-            <button
-              key={c}
-              onClick={() => toggleFilter(c)}
-              style={{
-                background: active ? color + "22" : "transparent",
-                border: `1px solid ${active ? color : "#252A35"}`,
-                borderRadius: 4, padding: "2px 8px",
-                color: active ? color : "#475569",
-                fontSize: 8, fontFamily: FONT, cursor: "pointer",
-                textTransform: "uppercase", letterSpacing: 1,
-              }}
-            >
-              {c}
-            </button>
+            <button key={c} onClick={()=>toggle(c)} style={{
+              background: active ? color+"18" : "transparent",
+              border: `1px solid ${active ? color : T.border}`,
+              borderRadius:4, padding:"3px 10px",
+              color: active ? color : T.textMuted,
+              fontSize:9, fontFamily:FONT, cursor:"pointer",
+              textTransform:"uppercase", letterSpacing:1, fontWeight:700,
+            }}>{c}</button>
           );
         })}
       </div>
 
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ flex: 1, width: "100%", cursor: "crosshair" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ flex:1, width:"100%", cursor:"crosshair" }}>
         {/* Grid */}
-        {[0.2, 0.4, 0.6, 0.8].map((f) => (
+        {[0.25,0.5,0.75].map(f=>(
           <g key={f}>
-            <line x1={pad.left} y1={pad.top + plotH*(1-f)} x2={pad.left+plotW} y2={pad.top+plotH*(1-f)} stroke="#1A2030" strokeWidth={1}/>
-            <line x1={pad.left+plotW*f} y1={pad.top} x2={pad.left+plotW*f} y2={pad.top+plotH} stroke="#1A2030" strokeWidth={1}/>
+            <line x1={pad.left} y1={pad.top+plotH*(1-f)} x2={pad.left+plotW} y2={pad.top+plotH*(1-f)} stroke={T.border} strokeWidth={1}/>
+            <line x1={pad.left+plotW*f} y1={pad.top} x2={pad.left+plotW*f} y2={pad.top+plotH} stroke={T.border} strokeWidth={1}/>
           </g>
         ))}
 
-        {/* Cohort background bands (subtle) */}
-        {(["breast","colon","lung"] as const).filter(c => activeFilters.has(c)).map((c, ci) => {
-          const color = cancerColors[c];
-          // group dots by cohort for label
-          const cohortPts = visible.filter(p => p.cancer === c);
-          if (!cohortPts.length) return null;
-          const minX = Math.min(...cohortPts.map(p => pad.left + p.x * plotW));
-          const maxX = Math.max(...cohortPts.map(p => pad.left + p.x * plotW));
-          const midY = cohortPts.reduce((s,p) => s + pad.top + (1-p.y)*plotH, 0) / cohortPts.length;
-          return (
-            <text key={c} x={Math.max(pad.left+2, minX)} y={midY - 14}
-              fill={color} fillOpacity={0.3} fontSize={7} fontFamily={FONT} letterSpacing={1}>
-              {c.toUpperCase()}
-            </text>
-          );
-        })}
-
-        {/* Dots — render non-selected first, selected on top */}
-        {[...visible.filter(p => p.id !== selectedId), ...visible.filter(p => p.id === selectedId)].map((p) => {
-          const cx = pad.left + p.x * plotW;
-          const cy = pad.top + (1 - p.y) * plotH;
-          const color = cancerColors[p.cancer];
-          const isSelected = p.id === selectedId;
-          const isHovered = p.id === hoverId;
-          // Opacity encodes maxTeam size
-          const teamOpacity = 0.3 + (p.maxTeam / maxTeam) * 0.65;
+        {/* Render non-selected first, selected last (on top) */}
+        {[...visible.filter(p=>p.id!==selectedId), ...visible.filter(p=>p.id===selectedId)].map(p => {
+          const cx = pad.left + p.x*plotW;
+          const cy = pad.top + (1-p.y)*plotH;
+          const color = CANCER_COLORS[p.cancer];
+          const isSel = p.id===selectedId;
+          const isHov = p.id===hoverId;
+          const opacity = 0.25 + (p.maxTeam/maxTeam)*0.7;
 
           return (
-            <g key={p.id} style={{ cursor: "pointer" }}
-              onClick={() => onSelectPatient(p.id)}
-              onMouseEnter={() => setHoverId(p.id)}
-              onMouseLeave={() => setHoverId(null)}>
+            <g key={p.id} style={{cursor:"pointer"}}
+              onClick={()=>onSelectPatient(p.id)}
+              onMouseEnter={()=>setHoverId(p.id)}
+              onMouseLeave={()=>setHoverId(null)}>
 
-              {/* Outer survival ring: white = survived, red-dashed = not */}
-              {isSelected && (
-                <>
-                  <circle cx={cx} cy={cy} r={13} fill="none"
-                    stroke={p.survived ? "#fff" : "#FF4757"}
-                    strokeWidth={2} opacity={0.9}
-                    strokeDasharray={p.survived ? "none" : "3,2"}
-                  />
-                  <circle cx={cx} cy={cy} r={18} fill="none"
-                    stroke={color} strokeWidth={1} opacity={0.3}
-                  />
-                </>
-              )}
-              {isHovered && !isSelected && (
-                <circle cx={cx} cy={cy} r={10} fill="none"
-                  stroke={color} strokeWidth={1} opacity={0.4}/>
-              )}
+              {/* Selection rings */}
+              {isSel && <>
+                <circle cx={cx} cy={cy} r={15} fill="none"
+                  stroke={p.survived ? "#0F172A" : T.red}
+                  strokeWidth={2} strokeDasharray={p.survived?"none":"4,2"}/>
+                <circle cx={cx} cy={cy} r={20} fill="none" stroke={color} strokeWidth={1} opacity={0.25}/>
+              </>}
+              {isHov && !isSel && <circle cx={cx} cy={cy} r={10} fill="none" stroke={color} strokeWidth={1} opacity={0.4}/>}
 
-              {/* Core dot: filled = survived, outline = not */}
-              {p.survived ? (
-                <circle cx={cx} cy={cy} r={isSelected ? 6 : 4.5}
-                  fill={color} opacity={isSelected ? 1 : isHovered ? 0.95 : teamOpacity}/>
-              ) : (
-                <circle cx={cx} cy={cy} r={isSelected ? 5.5 : 4}
-                  fill="none" stroke={color} strokeWidth={1.5}
-                  opacity={isSelected ? 1 : isHovered ? 0.9 : teamOpacity * 0.8}/>
-              )}
+              {p.survived
+                ? <circle cx={cx} cy={cy} r={isSel?6:4.5} fill={color}
+                    opacity={isSel?1:isHov?0.95:opacity}/>
+                : <circle cx={cx} cy={cy} r={isSel?5.5:4} fill="none" stroke={color} strokeWidth={1.5}
+                    opacity={isSel?1:isHov?0.9:opacity*0.75}/>
+              }
             </g>
           );
         })}
 
         {/* Axes */}
-        <text x={pad.left+plotW/2} y={H-6} textAnchor="middle" fill="#334155" fontSize={8} fontFamily={FONT}>Network Density →</text>
-        <text x={12} y={pad.top+plotH/2} textAnchor="middle" fill="#334155" fontSize={8} fontFamily={FONT} transform={`rotate(-90,12,${pad.top+plotH/2})`}>Avg Risk Score ↑</text>
+        <text x={pad.left+plotW/2} y={H-4} textAnchor="middle" fill={T.textFaint} fontSize={9} fontFamily={FONT}>Network Density →</text>
+        <text x={12} y={pad.top+plotH/2} textAnchor="middle" fill={T.textFaint} fontSize={9} fontFamily={FONT} transform={`rotate(-90,12,${pad.top+plotH/2})`}>Avg Risk Score ↑</text>
       </svg>
 
-      {selected && <InfoCard patient={selected} />}
+      {selected && <InfoCard patient={selected}/>}
 
       {/* Legend */}
-      <div style={{ display: "flex", gap: 14, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
-        {(["breast","colon","lung"] as const).map((c) => (
-          <div key={c} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <svg width={8} height={8}><circle cx={4} cy={4} r={3.5} fill={cancerColors[c]}/></svg>
-            <span style={{ color: "#64748B", fontSize: 7, fontFamily: FONT, textTransform: "uppercase" }}>{c}</span>
+      <div style={{ display:"flex", gap:12, marginTop:8, flexWrap:"wrap", alignItems:"center" }}>
+        {(["breast","colon","lung"] as const).map(c=>(
+          <div key={c} style={{ display:"flex", alignItems:"center", gap:4 }}>
+            <svg width={8} height={8}><circle cx={4} cy={4} r={3.5} fill={CANCER_COLORS[c]}/></svg>
+            <span style={{ color:T.textMuted, fontSize:9, fontFamily:FONT, textTransform:"uppercase" }}>{c}</span>
           </div>
         ))}
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <svg width={8} height={8}><circle cx={4} cy={4} r={3} fill="none" stroke="#94A3B8" strokeWidth={1.2}/></svg>
-          <span style={{ color: "#64748B", fontSize: 7, fontFamily: FONT }}>NOT SURVIVED</span>
+        <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+          <svg width={8} height={8}><circle cx={4} cy={4} r={3} fill="none" stroke={T.textMuted} strokeWidth={1.2}/></svg>
+          <span style={{ color:T.textMuted, fontSize:9 }}>Deceased</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <svg width={14} height={8}>
-            <line x1={0} y1={4} x2={14} y2={4} stroke="#fff" strokeWidth={1.5}/>
-          </svg>
-          <span style={{ color: "#64748B", fontSize: 7, fontFamily: FONT }}>SURVIVED (selected)</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <svg width={14} height={8}>
-            <line x1={0} y1={4} x2={14} y2={4} stroke="#FF4757" strokeWidth={1.5} strokeDasharray="3,2"/>
-          </svg>
-          <span style={{ color: "#64748B", fontSize: 7, fontFamily: FONT }}>DECEASED (selected)</span>
-        </div>
-        <span style={{ color: "#334155", fontSize: 7, fontFamily: FONT }}>opacity = team size</span>
+        <span style={{ color:T.textFaint, fontSize:8 }}>opacity = team size</span>
       </div>
     </div>
   );
 }
 
 function InfoCard({ patient }: { patient: PatientDot }) {
-  const color = cancerColors[patient.cancer];
+  const color = CANCER_COLORS[patient.cancer];
   return (
-    <div style={{
-      background: "#0D0F14", border: "1px solid #252A35", borderRadius: 8,
-      padding: "8px 14px", marginTop: 6, fontFamily: FONT,
-    }}>
-      <div style={{ color, fontSize: 11, fontWeight: 700, marginBottom: 3 }}>{patient.id}</div>
-      <div style={{ color: "#64748B", fontSize: 10, lineHeight: 1.7 }}>
-        SURVIVED: {patient.survived ? "YES" : "NO"} | WEEKS: {patient.weeks}<br/>
-        AVG RISK: {patient.avgRisk}% | MAX TEAM: {patient.maxTeam}<br/>
-        DENSITY: {patient.density}%
+    <div style={{ background:T.bgInset, border:`1px solid ${T.border}`, borderRadius:8,
+      padding:"8px 12px", marginTop:6 }}>
+      <div style={{ color, fontSize:12, fontWeight:700, marginBottom:3 }}>{patient.id}</div>
+      <div style={{ color:T.textSecondary, fontSize:10, lineHeight:1.7 }}>
+        SURVIVED: {patient.survived?"YES":"NO"} | WEEKS: {patient.weeks}<br/>
+        AVG RISK: {patient.avgRisk}% | MAX TEAM: {patient.maxTeam} | DENSITY: {patient.density}%
       </div>
     </div>
   );
