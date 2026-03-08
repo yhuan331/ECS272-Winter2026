@@ -348,7 +348,7 @@ export function ScatterPlot({ selectedId, onSelectPatient }: Props) {
           </svg>
           <span style={{ color: T.textMuted, fontSize: 9 }}>Deceased</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 5, marginLeft: "auto" }}>
+        {/* <div style={{ display: "flex", alignItems: "center", gap: 5, marginLeft: "auto" }}>
           <span style={{ color: T.textFaint, fontSize: 8 }}>team size:</span>
           {[3, 6, 9].map(r => (
             <svg key={r} width={r * 2 + 2} height={r * 2 + 2} style={{ overflow: "visible" }}>
@@ -356,7 +356,7 @@ export function ScatterPlot({ selectedId, onSelectPatient }: Props) {
             </svg>
           ))}
           <span style={{ color: T.textFaint, fontSize: 8 }}>small → large</span>
-        </div>
+        </div> */}
       </div>
     </div>
   );

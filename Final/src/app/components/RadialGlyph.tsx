@@ -13,7 +13,7 @@
  *               spike color  = direction: red=rising, green=falling, amber=stable
  */
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { weeklyData, surgeonEvents, totalPatientHCP } from "../realData";
 import type { WeekData } from "../realData";
 import { T } from "../theme";
@@ -72,18 +72,34 @@ interface RadialProps {
   selectedWeek: number | null;
   onSelectWeek: (week: number | null) => void;
   onHoverWeek: (data: WeekData | null) => void;
-  onModeChange: (mode: ViewMode) => void;
+
+  // NEW: allow parent to control mode
+  mode?: ViewMode;
+  onModeChange?: (mode: ViewMode) => void;
 }
 
-export function RadialGlyph({ selectedWeek, onSelectWeek, onHoverWeek, onModeChange }: RadialProps) {
+export function RadialGlyph({ selectedWeek, onSelectWeek, onHoverWeek, mode: modeProp, onModeChange }: RadialProps) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
-  const [mode, setMode]             = useState<ViewMode>("delta");
-  const svgRef = useRef<SVGSVGElement>(null);
 
+  // internal fallback if parent doesn't control it
+  const [localMode, setLocalMode] = useState<ViewMode>(modeProp ?? "delta");
+
+  // if parent changes mode, sync local
+  useEffect(() => {
+    if (modeProp) setLocalMode(modeProp);
+  }, [modeProp]);
+
+  // use the parent-controlled mode if provided, else local
+  const mode: ViewMode = modeProp ?? localMode;
+  // const handleSetMode = (m: ViewMode) => {
+  //   setMode(m);
+  //   onModeChange(m);
+  // };
+const svgRef = useRef<SVGSVGElement>(null);
   const handleSetMode = (m: ViewMode) => {
-    setMode(m);
-    onModeChange(m);
-  };
+  setLocalMode(m);
+  onModeChange?.(m);
+};
 
   if (!weeklyData.length) return (
     <div style={{ display:"flex", alignItems:"center", justifyContent:"center",
@@ -99,6 +115,17 @@ export function RadialGlyph({ selectedWeek, onSelectWeek, onHoverWeek, onModeCha
     ? ((weeklyData.reduce((s, d) => s + d.riskScore, 0) / weeklyData.length) * 100).toFixed(1)
     : "0";
 
+    // TEAM VOLATILITY = average absolute week-to-week change in team size
+  const avgAbsDeltaTeam =
+    weeklyData.length > 1
+      ? (
+          weeklyData.slice(1).reduce((s, d, i) => {
+            const prev = weeklyData[i]?.teamSize ?? 0;
+            const cur  = d?.teamSize ?? 0;
+            return s + Math.abs(cur - prev);
+          }, 0) / (weeklyData.length - 1)
+        ).toFixed(1)
+      : "0.0";
   const numWeeks     = weeklyData.length;
   const anglePerWeek = 360 / Math.max(numWeeks, 1);
 
@@ -284,31 +311,42 @@ export function RadialGlyph({ selectedWeek, onSelectWeek, onHoverWeek, onModeCha
             const vp = polarToCart(CX, CY, CENTER_R * 0.62, -30);
             return (
               <g>
-                <text x={lp.x} y={lp.y - 3} textAnchor="middle" dominantBaseline="central" fill={T.textMuted} fontSize={9} fontFamily={FONT}>TOTAL HCP</text>
+                <text x={lp.x} y={lp.y - 3} textAnchor="middle" dominantBaseline="central" fill={T.textMuted} fontSize={9} fontFamily={FONT}>TOTAL UNIQUE HCP</text>
                 <text x={vp.x} y={vp.y + 3} textAnchor="middle" dominantBaseline="central" fill="#2B6CB0" fontSize={16} fontFamily={FONT} fontWeight={700}>{totalPatientHCP}</text>
               </g>
             );
           })()}
 
-          {/* NOTE FREQ */}
+                    {/* TEAM VOLATILITY */}
           {(() => {
             const lp = polarToCart(CX, CY, CENTER_R * 0.45, 90);
             const vp = polarToCart(CX, CY, CENTER_R * 0.62, 90);
             return (
               <g>
-                <text x={lp.x} y={lp.y - 3} textAnchor="middle" dominantBaseline="central" fill={T.textMuted} fontSize={9} fontFamily={FONT}>NOTE FREQ</text>
-                <text x={vp.x} y={vp.y + 3} textAnchor="middle" dominantBaseline="central" fill="#38A169" fontSize={13} fontFamily={FONT} fontWeight={700}>{avgNotes}/wk</text>
+                <text
+                  x={lp.x} y={lp.y - 3}
+                  textAnchor="middle" dominantBaseline="central"
+                  fill={T.textMuted} fontSize={9} fontFamily={FONT}
+                >
+                  TEAM VOLATILITY
+                </text>
+                <text
+                  x={vp.x} y={vp.y + 3}
+                  textAnchor="middle" dominantBaseline="central"
+                  fill="#38A169" fontSize={13} fontFamily={FONT} fontWeight={700}
+                >
+                  {avgAbsDeltaTeam}/wk
+                </text>
               </g>
             );
           })()}
-
           {/* ATTR SUMMARY */}
           {(() => {
             const lp = polarToCart(CX, CY, CENTER_R * 0.32, 210);
             return (
               <g>
-                <text x={lp.x} y={lp.y - 12} textAnchor="middle" dominantBaseline="central" fill={T.textMuted} fontSize={9} fontFamily={FONT}>ATTR SUMMARY</text>
-                <text x={lp.x} y={lp.y + 1}  textAnchor="middle" dominantBaseline="central" fill="#D69E2E" fontSize={11} fontFamily={FONT}>Avg Prob {avgRiskAll}%</text>
+                {/* <text x={lp.x} y={lp.y - 12} textAnchor="middle" dominantBaseline="central" fill={T.textMuted} fontSize={9} fontFamily={FONT}>RISK OVERVIEW (Avg Risk %)</text> */}
+                <text x={lp.x} y={lp.y + 1}  textAnchor="middle" dominantBaseline="central" fill="#D69E2E" fontSize={11} fontFamily={FONT}>(Avg Predicted Risk %) {avgRiskAll}%</text>
               </g>
             );
           })()}
@@ -486,7 +524,7 @@ export function EmptyPanel({ avgRiskAll, peakWeek, totalPatientHCP, avgNotes, mo
   );
 }
 
-export function WeekPanel({ data, pinned, mode }: { data: WeekData; pinned?: boolean; mode?: ViewMode }) {
+export function WeekPanel({ data, pinned, mode = "delta" }: { data: WeekData; pinned?: boolean; mode?: ViewMode }) {
   const isSurgeonWeek = surgeonEvents.includes(data.week);
   return (
     <div style={{ fontFamily: T.font }}>
@@ -506,23 +544,24 @@ export function WeekPanel({ data, pinned, mode }: { data: WeekData; pinned?: boo
       </div>
 
       {/* ── Top stats row — switches based on mode ── */}
+      {/* IMPORTANT: parent must pass mode prop here or it defaults to "delta" */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px 16px", marginBottom: 14 }}>
-        {mode === "delta" ? (
+        {mode === "prob" ? (
+          <Stat
+            label="GNN DEATH RISK (CUMULATIVE)"
+            value={`${(data.riskScore * 100).toFixed(1)}%`}
+            color={data.spikeColor}
+          />
+        ) : (
           <Stat
             label="Δ PROB THIS WEEK"
             value={`${data.probDelta >= 0 ? "+" : ""}${(data.probDelta * 100).toFixed(2)}%`}
             color={data.spikeColor}
           />
-        ) : (
-          <Stat
-            label="GNN Predicted Death Risk"
-            value={`${(data.riskScore * 100).toFixed(1)}%`}
-            color={data.spikeColor}
-          />
         )}
         <Stat label="TEAM SIZE" value={String(data.teamSize ?? "—")} color="#6B9FFF" />
         <Stat
-          label="CARE DIVERSITY (Entropy)"
+          label="CARE DIVERSITY"
           value={
             data.entropy == null ? "—"
             : `${data.entropy.toFixed(2)} · ${data.entropy < 1.5 ? "LOW" : data.entropy < 2.5 ? "MED" : "HIGH"}`

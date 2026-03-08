@@ -101,11 +101,13 @@ export default function App() {
         {/* Radial — 40% */}
         <div style={{ flex: "0 0 39%", minHeight: 0 }}>
           <RadialGlyph
-            key={focusId + tick}
-            selectedWeek={selectedWeek}
-            onSelectWeek={handleSelectWeek}
-            onHoverWeek={handleHoverWeek}
-          />
+          key={focusId + tick}
+          selectedWeek={selectedWeek}
+          onSelectWeek={handleSelectWeek}
+          onHoverWeek={handleHoverWeek}
+          mode={mode}
+          onModeChange={setMode}
+        />
         </div>
 
         {/* Week info panel — remaining ~31% */}
