@@ -537,6 +537,7 @@ export default function App(){
   const [wiPerturbPct,   setWiPerturbPct]   = useState(0);                   // 0-100% reduction
   const [wiCenterIdx,    setWiCenterIdx]    = useState(0);                   // center week index
   const [wiOpenGroups,   setWiOpenGroups]   = useState<Record<string,boolean>>({});
+  const [wiPatientId,    setWiPatientId]    = useState<"A"|"B">("A");        // which patient to simulate
 
   // scatter filters
   const [filters,        setFilters]        = useState(new Set(["breast","colon","lung"]));
@@ -557,7 +558,11 @@ export default function App(){
   },[]);
 
   const handleSelect=(id:string)=>{
-    if(id===focusId) return;
+    // Toggle: clicking the already-selected patient deselects
+    if(id===focusId){
+      setFocusId("");setSelWeek(null);setHovData(null);setTick(t=>t+1);
+      return;
+    }
     switchPatient(id,_temporal,_egoMap as never);
     setFocusId(id);setSelWeek(null);setHovData(null);setSharedWeek(null);setTick(t=>t+1);
   };
@@ -580,7 +585,6 @@ export default function App(){
     <div style={{width:"100%",height:"100vh",background:"#0F172A",display:"flex",
       flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
       <div style={{color:"white",fontFamily:FONT,fontSize:20,fontWeight:800,letterSpacing:3}}>
-        ONCO<span style={{color:"#60A5FA"}}>NET</span>
       </div>
       <div style={{color:"#475569",fontFamily:FONT,fontSize:11,letterSpacing:2}}>LOADING PATIENT DATA…</div>
     </div>
@@ -609,14 +613,6 @@ export default function App(){
         display:"flex",alignItems:"center",padding:"0 20px",gap:12,
         boxShadow:"0 2px 12px rgba(0,0,0,.35)",zIndex:100,
       }}>
-        {/* Brand */}
-        <span style={{color:"white",fontSize:16,fontWeight:800,fontFamily:FONT,letterSpacing:2.5,flexShrink:0}}>
-          ONCO<span style={{color:"#60A5FA"}}>NET</span>
-        </span>
-        <span style={{color:"#334155",fontSize:9,fontFamily:FONT,letterSpacing:1.5,flexShrink:0}}>
-          CANCER CARE NETWORK VISUALIZER
-        </span>
-
         {/* Navigation buttons — compare mode */}
         {(view==="compare"||view==="whatif")&&(
           <button onClick={()=>setView("overview")} style={{
@@ -656,7 +652,7 @@ export default function App(){
         )}
 
         {/* Mode toggle */}
-        <div style={{display:"flex",gap:0,background:"#FFFFFF10",borderRadius:7,padding:2,marginLeft:6,flexShrink:0}}>
+        {/* <div style={{display:"flex",gap:0,background:"#FFFFFF10",borderRadius:7,padding:2,marginLeft:6,flexShrink:0}}>
           {(["delta","prob"] as const).map(m=>(
             <button key={m} onClick={()=>setMode(m)} style={{
               padding:"4px 12px",borderRadius:5,cursor:"pointer",
@@ -665,7 +661,7 @@ export default function App(){
               fontSize:10,fontFamily:FONT,fontWeight:800,letterSpacing:.8,transition:"all .1s",
             }}>{m==="delta"?"Δ PROB":"RISK %"}</button>
           ))}
-        </div>
+        </div> */}
 
         {/* Patient chips — right side */}
         <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
@@ -706,6 +702,11 @@ export default function App(){
               {!patientSelected&&(
                 <span style={{color:"#94A3B8",fontSize:10,fontFamily:FONT,marginLeft:8}}>
                   Click a patient to begin analysis
+                </span>
+              )}
+              {patientSelected&&(
+                <span style={{color:"#94A3B8",fontSize:10,fontFamily:FONT,marginLeft:8}}>
+                  Click selected dot again to deselect
                 </span>
               )}
             </div>
@@ -771,17 +772,9 @@ export default function App(){
                 padding:"16px",display:"flex",flexDirection:"column",gap:14,
                 background:"#F8FAFC"}}>
 
-                {/* Stats row */}
-                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,flexShrink:0}}>
-                  <Stat label="Avg Risk"     value={`${avgRiskAll}%`}  color="#D69E2E" xl/>
-                  <Stat label="Total HCPs"   value={String(totalPatientHCP)} color="#2B6CB0" xl/>
-                  <Stat label="Notes / Wk"   value={avgNotes}          color="#38A169"/>
-                  <Stat label="Peak Risk Wk" value={peakWeek?`W${peakWeek.week}`:"—"} color="#E53E3E"/>
-                </div>
-
                 {/* Radial + week detail side by side */}
-                <div style={{display:"flex",gap:14,flexShrink:0,minHeight:420}}>
-                  <div style={{flex:"0 0 50%",minHeight:0}}>
+                <div style={{display:"flex",gap:14,flexShrink:0,minHeight:560}}>
+                  <div style={{flex:"0 0 58%",minHeight:0}}>
                     <RadialGlyph key={focusId+tick}
                       selectedWeek={selWeek}
                       onSelectWeek={w=>{setSelWeek(w);if(w===null)setHovData(null);}}
@@ -869,7 +862,7 @@ export default function App(){
                 display:"flex",flexDirection:"column",gap:14,background:"#F8FAFC"}}>
 
                 {/* Radial */}
-                <div style={{height:440,flexShrink:0}}>
+                <div style={{height:560,flexShrink:0}}>
                   <RadialGlyph key={focusId+tick+"cmp"}
                     selectedWeek={sharedWeek}
                     onSelectWeek={setSharedWeek}
@@ -933,7 +926,7 @@ export default function App(){
                 display:"flex",flexDirection:"column",gap:14,background:"#F8FAFC"}}>
 
                 {/* Radial */}
-                <div style={{height:440,flexShrink:0}}>
+                <div style={{height:560,flexShrink:0}}>
                   <CompareGlyph key={cmpId+cmpTick}
                     weeklySnap={cmpSnap} surgeonSnap={cmpSurgSnap} totalHCP={cmpHCPSnap}
                     selectedWeek={sharedWeek} onSelectWeek={setSharedWeek}
@@ -959,6 +952,14 @@ export default function App(){
                   </div>
                 )}
 
+                {/* HCP chart — patient B uses cmpSnap data */}
+                <div style={{flexShrink:0}}>
+                  <BlockLabel text={`HCP SPECIALTY BREAKDOWN${sharedWeek!=null?` — Week ${sharedWeek}`:""}`}/>
+                  <div style={{border:"2px solid #0F172A",borderTop:"none",borderRadius:"0 0 8px 8px",overflow:"hidden"}}>
+                    <HCPBarChart key={cmpId+cmpTick+(sharedWeek??"all")} selectedWeek={sharedWeek} data={cmpSnap}/>
+                  </div>
+                </div>
+
                 {/* Ego network — same sharedWeek key = synced with column A */}
                 <div style={{flexShrink:0}}>
                   <BlockLabel
@@ -982,10 +983,15 @@ export default function App(){
 
         /* ── SURROGATE WHAT-IF VIEW ───────────────────────────────────────── */
         (()=>{
-          // Compute surrogate ranking from current patient's weekly data
-          const surrogateRanking: SurrogateFeature[] = getPatientSurrogateRanking(weeklyData, 60);
+          // ── Which patient are we simulating? ────────────────────────────
+          const effectivePatientId = (wiPatientId==="B" && cmpId) ? cmpId : focusId;
+          const effectivePt        = (wiPatientId==="B" && cmpPt) ? cmpPt : focusPt;
+          const wiData             = (wiPatientId==="B" && cmpSnap.length) ? cmpSnap : weeklyData;
+          const wiAccent           = wiPatientId==="B" ? "#6B46C1" : "#2B6CB0";
 
-          // Group features by specialty group using same LEVEL1 color map
+          // Compute surrogate ranking from the active patient's weekly data
+          const surrogateRanking: SurrogateFeature[] = getPatientSurrogateRanking(wiData, 60);
+
           const SPEC_COLORS: Record<string,string> = {
             "Surgical Oncology":"#7c3aed","Medical Oncology":"#be185d","Nursing":"#0891b2",
             "Internal Medicine":"#2A9D8F","Int Med Specialty":"#1a47c8","Radiology":"#0284c7",
@@ -1023,7 +1029,6 @@ export default function App(){
             return "Other";
           }
 
-          // Group features
           const groupMap: Record<string,{color:string;features:SurrogateFeature[];totalImportance:number}> = {};
           for(const f of surrogateRanking){
             const grp = featGroupLabel(f.feature);
@@ -1031,14 +1036,12 @@ export default function App(){
             groupMap[grp].features.push(f);
             groupMap[grp].totalImportance += f.importance;
           }
-          const groups = Object.entries(groupMap)
-            .sort((a,b)=>b[1].totalImportance-a[1].totalImportance);
-          const overallMax = Math.max(...surrogateRanking.map(f=>f.importance),0.001);
+          const groups = Object.entries(groupMap).sort((a,b)=>b[1].totalImportance-a[1].totalImportance);
 
-          // Compute perturbed risk timeline
-          const origRisks = weeklyData.map(w=>w.riskScore);
+          // ── Risk timelines ───────────────────────────────────────────────
+          const origRisks = wiData.map(w=>w.riskScore);
           const pertRisks = wiFeature
-            ? computePerturbedRisk(weeklyData, wiCenterIdx, wiPerturbPct, wiFeature)
+            ? computePerturbedRisk(wiData, wiCenterIdx, wiPerturbPct, wiFeature)
             : origRisks;
 
           const origEnd = origRisks[origRisks.length-1] ?? 0;
@@ -1049,59 +1052,135 @@ export default function App(){
           const selGrp  = selFeat ? featGroupLabel(selFeat.feature) : null;
           const selCol  = selGrp ? (SPEC_COLORS[selGrp]??"#0284c7") : "#0284c7";
 
-          // SVG chart dims
-          const CW=600,CH=120,PL=44,PR=16,PT=12,PB=22;
+          // ── SVG chart geometry ───────────────────────────────────────────
+          // Taller chart for better readability
+          const CW=640, CH=180, PL=48, PR=20, PT=16, PB=28;
           const pw=CW-PL-PR, ph=CH-PT-PB;
-          const n=weeklyData.length;
+          const n=wiData.length;
           const toX=(i:number)=>PL+(i/(Math.max(n-1,1)))*pw;
           const toY=(v:number)=>PT+ph-(Math.max(0,Math.min(1,v)))*ph;
-          const origPts=origRisks.map((v,i)=>`${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(" L");
-          const pertPts=pertRisks.map((v,i)=>`${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(" L");
-          // shaded area from center onward
-          const shadePts=pertRisks.slice(wiCenterIdx)
+
+          // Original line: full span, always gray dashed
+          const origPts = origRisks.map((v,i)=>`${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(" L");
+
+          // Perturbed line: drawn in two segments
+          //   Segment 1 (before center): matches original exactly — draw as solid accent color
+          //   Segment 2 (from center): the actual perturbed values — solid accent color
+          // This way the perturbed line "splits off" visually at the center marker
+          const beforeCenterPts = origRisks.slice(0, wiCenterIdx+1)
+            .map((v,i)=>`${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(" L");
+          const afterCenterPts  = pertRisks.slice(wiCenterIdx)
             .map((v,j)=>`${toX(wiCenterIdx+j).toFixed(1)},${toY(v).toFixed(1)}`).join(" L");
-          const shadeArea= wiFeature && wiCenterIdx<n-1
-            ? `M${toX(wiCenterIdx).toFixed(1)},${(PT+ph).toFixed(1)} L${shadePts} L${toX(n-1).toFixed(1)},${(PT+ph).toFixed(1)} Z`
+
+          // Shaded fill between original and perturbed AFTER center
+          const origAfterPts = origRisks.slice(wiCenterIdx)
+            .map((v,j)=>`${toX(wiCenterIdx+j).toFixed(1)},${toY(v).toFixed(1)}`).join(" L");
+          const shadeArea = wiFeature && wiPerturbPct>0 && wiCenterIdx<n-1
+            ? `M${afterCenterPts} L${toX(n-1).toFixed(1)},${toY(origRisks[n-1]).toFixed(1)} ${
+                origRisks.slice(wiCenterIdx).reverse().map((v,j)=>
+                  `L${toX(n-1-j).toFixed(1)},${toY(v).toFixed(1)}`
+                ).join(" ")} Z`
             : "";
-          const cx=toX(wiCenterIdx).toFixed(1);
+
+          const cx  = toX(wiCenterIdx).toFixed(1);
+          const cyo = toY(origRisks[wiCenterIdx]??0).toFixed(1);
 
           return(
           <div style={{flex:1,minHeight:0,overflowY:"auto",background:"#F8FAFC"}}>
-            <div style={{maxWidth:1280,margin:"0 auto",padding:"24px 24px",display:"flex",flexDirection:"column",gap:16}}>
+            <div style={{maxWidth:1380,margin:"0 auto",padding:"20px 24px",display:"flex",flexDirection:"column",gap:14}}>
 
-              {/* ── HEADER ── */}
-              <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
-                <div style={{background:"#D69E2E",borderRadius:10,width:44,height:44,
-                  display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>⚡</div>
+              {/* ── HEADER BAR ── */}
+              <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap",
+                background:"#0F172A",borderRadius:12,padding:"14px 20px"}}>
+                <div style={{background:"#D69E2E",borderRadius:8,width:36,height:36,
+                  display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>⚡</div>
                 <div>
-                  <div style={{color:"#0F172A",fontSize:20,fontWeight:800,fontFamily:FONT,letterSpacing:.5}}>
+                  <div style={{color:"#fff",fontSize:16,fontWeight:800,fontFamily:FONT,letterSpacing:.5}}>
                     SURROGATE WHAT-IF SIMULATION
                   </div>
-                  <div style={{color:"#64748B",fontSize:12,fontFamily:FONT,marginTop:2}}>
-                    Select a feature below · drag slider to simulate reducing that care type · see projected risk change for{" "}
-                    <strong style={{color:"#2B6CB0"}}>{focusId}</strong>
+                  <div style={{color:"#94A3B8",fontSize:11,fontFamily:FONT,marginTop:1}}>
+                    Simulating impact of reducing care contact · surrogate model approximation
                   </div>
                 </div>
-                {selFeat&&(
-                  <div style={{marginLeft:"auto",background:selCol+"18",border:`2px solid ${selCol}44`,
-                    borderRadius:8,padding:"6px 14px",flexShrink:0}}>
-                    <div style={{color:selCol,fontSize:10,fontWeight:800,fontFamily:FONT,letterSpacing:1}}>SELECTED FEATURE</div>
-                    <div style={{color:"#0F172A",fontSize:13,fontWeight:700,fontFamily:FONT}}>{selFeat.displayLabel}</div>
-                    <div style={{color:"#64748B",fontSize:10,fontFamily:FONT}}>w={selFeat.importance.toFixed(4)} · appeared {selFeat.weekCount}w</div>
-                  </div>
-                )}
+
+                {/* ── PATIENT SWITCHER ── */}
+                <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
+                  <span style={{color:"#64748B",fontSize:10,fontFamily:FONT,fontWeight:700,letterSpacing:1}}>
+                    SIMULATING:
+                  </span>
+                  {/* Patient A chip */}
+                  {focusPt&&(
+                    <button onClick={()=>{
+                        if(wiPatientId!=="A"){
+                          setWiPatientId("A");
+                          setWiFeature(null);setWiPerturbPct(0);setWiCenterIdx(0);
+                          setWiOpenGroups({});
+                        }
+                      }}
+                      style={{
+                        display:"flex",alignItems:"center",gap:8,
+                        padding:"7px 14px",borderRadius:8,cursor:"pointer",
+                        background: wiPatientId==="A" ? "#2B6CB0" : "#1E293B",
+                        border: `2px solid ${wiPatientId==="A" ? "#60A5FA" : "#334155"}`,
+                        transition:"all .15s",
+                      }}>
+                      <span style={{background: wiPatientId==="A" ? "rgba(255,255,255,.3)" : "#334155",
+                        color:"#fff",fontSize:9,fontWeight:800,fontFamily:FONT,
+                        borderRadius:4,padding:"2px 7px",letterSpacing:.8}}>A</span>
+                      <span style={{color:"#fff",fontSize:12,fontWeight:800,fontFamily:FONT}}>{focusId}</span>
+                      <span style={{color: wiPatientId==="A" ? "rgba(255,255,255,.8)" : "#64748B",
+                        fontSize:10,fontFamily:FONT}}>
+                        {focusPt.cancer} · {focusPt.survived?"survived":"deceased"} · {focusPt.avgRisk}%
+                      </span>
+                      {wiPatientId==="A"&&<span style={{color:"#60A5FA",fontSize:10,fontWeight:800,fontFamily:FONT}}>✓</span>}
+                    </button>
+                  )}
+                  {/* Patient B chip — only shown if compare patient exists */}
+                  {cmpPt&&cmpId&&(
+                    <button onClick={()=>{
+                        if(wiPatientId!=="B"){
+                          setWiPatientId("B");
+                          setWiFeature(null);setWiPerturbPct(0);setWiCenterIdx(0);
+                          setWiOpenGroups({});
+                        }
+                      }}
+                      style={{
+                        display:"flex",alignItems:"center",gap:8,
+                        padding:"7px 14px",borderRadius:8,cursor:"pointer",
+                        background: wiPatientId==="B" ? "#6B46C1" : "#1E293B",
+                        border: `2px solid ${wiPatientId==="B" ? "#C084FC" : "#334155"}`,
+                        transition:"all .15s",
+                      }}>
+                      <span style={{background: wiPatientId==="B" ? "rgba(255,255,255,.3)" : "#334155",
+                        color:"#fff",fontSize:9,fontWeight:800,fontFamily:FONT,
+                        borderRadius:4,padding:"2px 7px",letterSpacing:.8}}>B</span>
+                      <span style={{color:"#fff",fontSize:12,fontWeight:800,fontFamily:FONT}}>{cmpId}</span>
+                      <span style={{color: wiPatientId==="B" ? "rgba(255,255,255,.8)" : "#64748B",
+                        fontSize:10,fontFamily:FONT}}>
+                        {cmpPt.cancer} · {cmpPt.survived?"survived":"deceased"} · {cmpPt.avgRisk}%
+                      </span>
+                      {wiPatientId==="B"&&<span style={{color:"#C084FC",fontSize:10,fontWeight:800,fontFamily:FONT}}>✓</span>}
+                    </button>
+                  )}
+                  {!cmpPt&&(
+                    <div style={{padding:"7px 14px",borderRadius:8,border:"2px dashed #334155",
+                      color:"#475569",fontSize:10,fontFamily:FONT}}>
+                      Right-click a dot in Overview to add Patient B
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* ── TWO COLUMNS: LEFT=feature browser, RIGHT=chart+controls ── */}
-              <div style={{display:"flex",gap:16,alignItems:"flex-start",minHeight:0}}>
+              {/* ── TWO COLUMNS ── */}
+              <div style={{display:"flex",gap:16,alignItems:"flex-start"}}>
 
-                {/* LEFT: Surrogate feature browser */}
-                <div style={{width:340,flexShrink:0,display:"flex",flexDirection:"column",gap:8}}>
+                {/* LEFT: Feature browser */}
+                <div style={{width:320,flexShrink:0,display:"flex",flexDirection:"column",gap:6}}>
                   <div style={{color:"#0F172A",fontSize:11,fontWeight:800,letterSpacing:1,fontFamily:FONT}}>
-                    SURROGATE MODEL — FEATURE IMPORTANCE
+                    SURROGATE FEATURE IMPORTANCE
                   </div>
-                  <div style={{color:"#64748B",fontSize:10,fontFamily:FONT,marginBottom:4}}>
-                    Ranked by avg |weight| across patient weeks · click to select for simulation
+                  <div style={{color:"#64748B",fontSize:10,fontFamily:FONT,marginBottom:2}}>
+                    Ranked by avg |weight| · click a row to simulate
                   </div>
                   {groups.map(([grpName,grp])=>{
                     const open = wiOpenGroups[grpName] ?? (grpName===groups[0]?.[0]);
@@ -1109,23 +1188,22 @@ export default function App(){
                     const maxFeat=grp.features[0]?.importance??1;
                     return(
                       <div key={grpName} style={{background:"#fff",border:"2px solid #E2E8F0",borderRadius:8,overflow:"hidden"}}>
-                        {/* Group header */}
                         <div onClick={toggleOpen} style={{
                           display:"flex",alignItems:"center",gap:8,padding:"8px 12px",cursor:"pointer",
-                          background:open?`${grp.color}08`:"#fff",borderBottom:open?"2px solid #E2E8F0":"none",
+                          background:open?`${grp.color}08`:"#fff",
+                          borderBottom:open?"2px solid #E2E8F0":"none",
                         }}>
                           <div style={{width:10,height:10,borderRadius:"50%",background:grp.color,flexShrink:0}}/>
                           <span style={{color:grp.color,fontSize:12,fontWeight:800,fontFamily:FONT,flex:1}}>{grpName}</span>
-                          <div style={{width:70,height:5,background:"#F1F5F9",borderRadius:3,overflow:"hidden"}}>
+                          <div style={{width:60,height:5,background:"#F1F5F9",borderRadius:3,overflow:"hidden"}}>
                             <div style={{height:"100%",borderRadius:3,background:grp.color,
                               width:`${((grp.totalImportance/groups[0][1].totalImportance)*100).toFixed(1)}%`}}/>
                           </div>
-                          <span style={{color:grp.color,fontSize:11,fontWeight:700,fontFamily:FONT,minWidth:46,textAlign:"right"}}>
+                          <span style={{color:grp.color,fontSize:11,fontWeight:700,fontFamily:FONT,minWidth:42,textAlign:"right"}}>
                             {grp.totalImportance.toFixed(3)}
                           </span>
-                          <span style={{color:"#94A3B8",fontSize:12,fontFamily:FONT}}>{open?"▴":"▾"}</span>
+                          <span style={{color:"#94A3B8",fontSize:11}}>{open?"▴":"▾"}</span>
                         </div>
-                        {/* Feature rows */}
                         {open&&grp.features.map(feat=>{
                           const isSel=wiFeature===feat.feature;
                           const barPct=((feat.importance/maxFeat)*100).toFixed(1);
@@ -1134,10 +1212,9 @@ export default function App(){
                               onClick={()=>{setWiFeature(isSel?null:feat.feature);setWiPerturbPct(0);}}
                               style={{display:"flex",alignItems:"center",gap:8,padding:"7px 12px",
                                 cursor:"pointer",borderBottom:"1px solid #F1F5F9",
-                                background:isSel?`${grp.color}14`:"transparent",
-                                transition:"background .1s"}}>
+                                background:isSel?`${grp.color}14`:"transparent",transition:"background .1s"}}>
                               <div style={{flex:1,minWidth:0}}>
-                                <div style={{color:isSel?grp.color:"#0F172A",fontSize:11,fontFamily:FONT,
+                                <div style={{color:isSel?grp.color:"#334155",fontSize:11,fontFamily:FONT,
                                   fontWeight:isSel?800:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                                   {feat.displayLabel}
                                 </div>
@@ -1145,14 +1222,12 @@ export default function App(){
                                   ×{feat.weekCount}w · val̄={feat.avgValue.toFixed(1)}
                                 </div>
                               </div>
-                              <div style={{width:60,height:5,background:"#F1F5F9",borderRadius:3,overflow:"hidden",flexShrink:0}}>
+                              <div style={{width:52,height:5,background:"#F1F5F9",borderRadius:3,overflow:"hidden",flexShrink:0}}>
                                 <div style={{height:"100%",borderRadius:3,background:grp.color,width:`${barPct}%`}}/>
                               </div>
                               <span style={{color:grp.color,fontSize:11,fontWeight:700,fontFamily:FONT,
-                                minWidth:46,textAlign:"right"}}>
-                                {feat.importance.toFixed(3)}
-                              </span>
-                              {isSel&&<span style={{color:grp.color,fontSize:12}}>✓</span>}
+                                minWidth:42,textAlign:"right"}}>{feat.importance.toFixed(3)}</span>
+                              {isSel&&<span style={{color:grp.color,fontSize:11,fontWeight:800}}>✓</span>}
                             </div>
                           );
                         })}
@@ -1167,134 +1242,224 @@ export default function App(){
                   )}
                 </div>
 
-                {/* RIGHT: Chart + controls */}
-                <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:14}}>
+                {/* RIGHT: Cards + chart + slider */}
+                <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:12}}>
 
-                  {/* Risk cards */}
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
-                    <div style={{background:"#fff",border:"3px solid #D69E2E",borderRadius:10,padding:"14px 18px"}}>
-                      <div style={{color:"#D69E2E",fontSize:10,fontWeight:800,letterSpacing:1.5,marginBottom:4,fontFamily:FONT}}>BASE RISK (end)</div>
-                      <div style={{color:"#D69E2E",fontSize:36,fontWeight:800,fontFamily:FONT,lineHeight:1}}>
+                  {/* Risk summary cards */}
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+                    <div style={{background:"#fff",border:"3px solid #D69E2E",borderRadius:10,padding:"12px 16px"}}>
+                      <div style={{color:"#D69E2E",fontSize:9,fontWeight:800,letterSpacing:1.5,marginBottom:4,fontFamily:FONT}}>BASE RISK (end)</div>
+                      <div style={{color:"#D69E2E",fontSize:34,fontWeight:800,fontFamily:FONT,lineHeight:1}}>
                         {(origEnd*100).toFixed(1)}%
                       </div>
+                      <div style={{color:"#94A3B8",fontSize:9,fontFamily:FONT,marginTop:4}}>
+                        {effectivePatientId} · original trajectory
+                      </div>
                     </div>
-                    <div style={{background:"#fff",border:`3px solid ${wiFeature?(isGood?"#38A169":"#E53E3E"):"#E2E8F0"}`,borderRadius:10,padding:"14px 18px"}}>
-                      <div style={{color:wiFeature?(isGood?"#38A169":"#E53E3E"):"#94A3B8",fontSize:10,fontWeight:800,letterSpacing:1.5,marginBottom:4,fontFamily:FONT}}>
+                    <div style={{background:"#fff",border:`3px solid ${wiFeature?(isGood?"#38A169":"#E53E3E"):"#E2E8F0"}`,borderRadius:10,padding:"12px 16px"}}>
+                      <div style={{color:wiFeature?(isGood?"#38A169":"#E53E3E"):"#94A3B8",fontSize:9,fontWeight:800,letterSpacing:1.5,marginBottom:4,fontFamily:FONT}}>
                         PROJECTED RISK (end)
                       </div>
-                      <div style={{color:wiFeature?(isGood?"#38A169":"#E53E3E"):"#94A3B8",fontSize:36,fontWeight:800,fontFamily:FONT,lineHeight:1}}>
+                      <div style={{color:wiFeature?(isGood?"#38A169":"#E53E3E"):"#94A3B8",fontSize:34,fontWeight:800,fontFamily:FONT,lineHeight:1}}>
                         {wiFeature?(pertEnd*100).toFixed(1)+"%" : "—"}
                       </div>
+                      <div style={{color:"#94A3B8",fontSize:9,fontFamily:FONT,marginTop:4}}>
+                        {wiFeature?`after ↓${wiPerturbPct}% ${selFeat?.displayLabel??""}`:"select a feature"}
+                      </div>
                     </div>
-                    <div style={{background:"#fff",border:`3px solid ${wiFeature?(isGood?"#38A169":"#E53E3E"):"#E2E8F0"}`,borderRadius:10,padding:"14px 18px"}}>
-                      <div style={{color:wiFeature?(isGood?"#38A169":"#E53E3E"):"#94A3B8",fontSize:10,fontWeight:800,letterSpacing:1.5,marginBottom:4,fontFamily:FONT}}>Δ RISK</div>
-                      <div style={{color:wiFeature?(isGood?"#38A169":"#E53E3E"):"#94A3B8",fontSize:36,fontWeight:800,fontFamily:FONT,lineHeight:1}}>
+                    <div style={{background:"#fff",border:`3px solid ${wiFeature?(isGood?"#38A169":"#E53E3E"):"#E2E8F0"}`,borderRadius:10,padding:"12px 16px"}}>
+                      <div style={{color:wiFeature?(isGood?"#38A169":"#E53E3E"):"#94A3B8",fontSize:9,fontWeight:800,letterSpacing:1.5,marginBottom:4,fontFamily:FONT}}>Δ RISK</div>
+                      <div style={{color:wiFeature?(isGood?"#38A169":"#E53E3E"):"#94A3B8",fontSize:34,fontWeight:800,fontFamily:FONT,lineHeight:1}}>
                         {wiFeature?(delta>=0?"+":"")+(delta*100).toFixed(2)+"%" : "—"}
+                      </div>
+                      <div style={{color:"#94A3B8",fontSize:9,fontFamily:FONT,marginTop:4}}>
+                        {wiFeature?(isGood?"risk reduction ↓":"risk increase ↑"):"awaiting feature selection"}
                       </div>
                     </div>
                   </div>
 
-                  {/* Risk timeline chart */}
+                  {/* Chart placeholder when no feature selected */}
                   {!wiFeature&&(
                     <div style={{background:"#fff",border:"2px solid #E2E8F0",borderRadius:10,
-                      padding:"20px",display:"flex",alignItems:"center",justifyContent:"center",minHeight:160}}>
+                      padding:"20px",display:"flex",alignItems:"center",justifyContent:"center",minHeight:200}}>
                       <div style={{textAlign:"center",color:"#94A3B8",fontFamily:FONT}}>
-                        <div style={{fontSize:32,marginBottom:8}}>←</div>
+                        <div style={{fontSize:36,marginBottom:8}}>←</div>
                         <div style={{fontSize:13,fontWeight:700}}>Select a feature to simulate</div>
-                        <div style={{fontSize:11,marginTop:4}}>Click any row in the feature browser to see projected risk change</div>
+                        <div style={{fontSize:11,marginTop:4}}>Click any row in the feature browser on the left</div>
                       </div>
                     </div>
                   )}
+
+                  {/* ── RISK TRAJECTORY CHART ── */}
                   {wiFeature&&(
-                    <div style={{background:"#fff",border:"2px solid #E2E8F0",borderRadius:10,padding:"16px 18px"}}>
-                      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap"}}>
-                        <span style={{color:"#0F172A",fontSize:11,fontWeight:800,letterSpacing:1,fontFamily:FONT}}>
+                    <div style={{background:"#fff",border:"2px solid #E2E8F0",borderRadius:10,padding:"16px 20px"}}>
+
+                      {/* Chart header + legend */}
+                      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,flexWrap:"wrap"}}>
+                        <span style={{color:"#0F172A",fontSize:12,fontWeight:800,letterSpacing:.8,fontFamily:FONT}}>
                           RISK TRAJECTORY
                         </span>
-                        <span style={{color:"#94A3B8",fontSize:10,fontFamily:FONT}}>
-                          — original &nbsp; — projected (from center week)
-                        </span>
-                        <span style={{marginLeft:"auto",color:isGood?"#38A169":"#E53E3E",fontSize:12,fontWeight:800,fontFamily:FONT}}>
-                          {isGood?"↓ reduces":"↑ increases"} end risk by {Math.abs(delta*100).toFixed(2)}%
+                        {/* Legend */}
+                        <div style={{display:"flex",alignItems:"center",gap:14,marginLeft:8}}>
+                          <div style={{display:"flex",alignItems:"center",gap:5}}>
+                            <svg width={28} height={8}>
+                              <line x1={0} y1={4} x2={28} y2={4} stroke="#94A3B8" strokeWidth={2} strokeDasharray="5,3"/>
+                            </svg>
+                            <span style={{color:"#64748B",fontSize:10,fontFamily:FONT}}>Original predicted risk</span>
+                          </div>
+                          <div style={{display:"flex",alignItems:"center",gap:5}}>
+                            <svg width={28} height={8}>
+                              <line x1={0} y1={4} x2={28} y2={4} stroke={isGood?"#38A169":"#E53E3E"} strokeWidth={2.5}/>
+                            </svg>
+                            <span style={{color:"#64748B",fontSize:10,fontFamily:FONT}}>
+                              Projected ({isGood?"reduced":"increased"}) risk
+                            </span>
+                          </div>
+                          <div style={{display:"flex",alignItems:"center",gap:5}}>
+                            <div style={{width:12,height:12,background:"#D69E2E",borderRadius:2}}/>
+                            <span style={{color:"#64748B",fontSize:10,fontFamily:FONT}}>Center point</span>
+                          </div>
+                        </div>
+                        <span style={{marginLeft:"auto",color:isGood?"#38A169":"#E53E3E",
+                          fontSize:12,fontWeight:800,fontFamily:FONT}}>
+                          {isGood?"↓":"↑"} end risk {isGood?"reduced by":"increased by"}{" "}
+                          <strong>{Math.abs(delta*100).toFixed(2)}%</strong>
                         </span>
                       </div>
 
                       {/* SVG chart */}
-                      <div style={{position:"relative",overflowX:"auto"}}>
-                        <svg viewBox={`0 0 ${CW} ${CH}`} style={{width:"100%",display:"block",minWidth:320}}>
-                          {/* Y grid */}
-                          {[0,.25,.5,.75,1].map(v=>{
-                            const y=toY(v).toFixed(1);
-                            return(<g key={v}>
-                              <line x1={PL} y1={y} x2={CW-PR} y2={y} stroke="#F1F5F9" strokeWidth={.8}/>
-                              <text x={PL-4} y={parseFloat(y)+3} textAnchor="end" fontSize={7} fill="#94A3B8" fontFamily={FONT}>{(v*100).toFixed(0)}%</text>
-                            </g>);
-                          })}
-                          {/* X axis */}
-                          <line x1={PL} y1={PT+ph} x2={CW-PR} y2={PT+ph} stroke="#E2E8F0" strokeWidth={1}/>
-                          {/* Shaded area */}
-                          {shadeArea&&<path d={shadeArea} fill={isGood?"#38A169":"#E53E3E"} opacity={.08}/>}
-                          {/* Original line */}
-                          <polyline points={origPts} fill="none" stroke="#CBD5E1" strokeWidth={1.5} strokeDasharray="5,3"/>
-                          {/* Perturbed line */}
-                          <polyline points={pertPts} fill="none"
-                            stroke={isGood?"#38A169":"#E53E3E"} strokeWidth={2.5}/>
-                          {/* Center marker */}
-                          <line x1={cx} y1={PT} x2={cx} y2={PT+ph} stroke="#D69E2E" strokeWidth={2} opacity={.9}/>
-                          <circle cx={cx} cy={toY(origRisks[wiCenterIdx]).toFixed(1)} r={5}
-                            fill="#D69E2E" stroke="white" strokeWidth={2}/>
-                          <text x={parseFloat(cx)+6} y={PT+14} fontSize={8} fill="#D69E2E" fontFamily={FONT} fontWeight={800}>
-                            center w{weeklyData[wiCenterIdx]?.week??wiCenterIdx}
-                          </text>
-                          {/* Clickable weeks for center */}
-                          {weeklyData.map((_,i)=>(
-                            <rect key={i} x={toX(i)-6} y={PT} width={12} height={ph}
-                              fill="transparent" style={{cursor:"pointer"}}
-                              onClick={()=>setWiCenterIdx(i)}/>
-                          ))}
-                          {/* Week labels */}
-                          {[0,Math.floor(n/4),Math.floor(n/2),Math.floor(3*n/4),n-1].filter((v,i,a)=>a.indexOf(v)===i).map(i=>(
-                            <text key={i} x={toX(i).toFixed(1)} y={PT+ph+14} textAnchor="middle"
-                              fontSize={7} fill="#94A3B8" fontFamily={FONT}>
-                              w{weeklyData[i]?.week??i}
+                      <svg viewBox={`0 0 ${CW} ${CH}`} style={{width:"100%",display:"block",borderRadius:6,
+                        border:"1px solid #F1F5F9",background:"#FAFBFC"}}>
+
+                        {/* Y grid lines + labels */}
+                        {[0,.25,.5,.75,1].map(v=>{
+                          const y=toY(v).toFixed(1);
+                          return(<g key={v}>
+                            <line x1={PL} y1={y} x2={CW-PR} y2={y}
+                              stroke={v===0.5?"#E2E8F0":"#F1F5F9"} strokeWidth={v===0.5?1.2:.7}
+                              strokeDasharray={v===0.5?"4,3":""}/>
+                            <text x={PL-5} y={parseFloat(y)+3.5} textAnchor="end"
+                              fontSize={8} fill="#94A3B8" fontFamily={FONT}>
+                              {(v*100).toFixed(0)}%
                             </text>
-                          ))}
-                        </svg>
-                        <div style={{fontSize:10,color:"#94A3B8",fontFamily:FONT,marginTop:4}}>
-                          ↑ Click on chart to move the center point · perturbation applies from center onward
-                        </div>
+                          </g>);
+                        })}
+
+                        {/* X axis baseline */}
+                        <line x1={PL} y1={PT+ph} x2={CW-PR} y2={PT+ph} stroke="#E2E8F0" strokeWidth={1}/>
+
+                        {/* Shaded delta area between original and perturbed after center */}
+                        {shadeArea&&<path d={shadeArea} fill={isGood?"#38A169":"#E53E3E"} opacity={.1}/>}
+
+                        {/* ── ORIGINAL LINE — gray dashed, full span ── */}
+                        <polyline points={origPts} fill="none"
+                          stroke="#94A3B8" strokeWidth={2} strokeDasharray="7,4" opacity={.9}/>
+
+                        {/* ── PROJECTED LINE — two segments ──
+                            Before center: same as original (solid accent, slightly transparent)
+                            After center:  diverged perturbed values (solid, full opacity) */}
+                        {n > 1 && wiCenterIdx > 0 && (
+                          <polyline points={beforeCenterPts} fill="none"
+                            stroke={isGood?"#38A169":"#E53E3E"} strokeWidth={2.5} opacity={.35}/>
+                        )}
+                        <polyline points={afterCenterPts} fill="none"
+                          stroke={isGood?"#38A169":"#E53E3E"} strokeWidth={2.5} opacity={1}/>
+
+                        {/* Endpoint dot on original */}
+                        <circle cx={toX(n-1).toFixed(1)} cy={toY(origRisks[n-1]??0).toFixed(1)}
+                          r={4} fill="#94A3B8" opacity={.8}/>
+
+                        {/* Endpoint dot on perturbed */}
+                        <circle cx={toX(n-1).toFixed(1)} cy={toY(pertRisks[n-1]??0).toFixed(1)}
+                          r={5} fill={isGood?"#38A169":"#E53E3E"} stroke="white" strokeWidth={1.5}/>
+
+                        {/* Delta annotation at end */}
+                        {Math.abs(delta)>0.001&&(()=>{
+                          const xEnd=toX(n-1);
+                          const yOrig=toY(origRisks[n-1]??0);
+                          const yPert=toY(pertRisks[n-1]??0);
+                          const midY=(yOrig+yPert)/2;
+                          return(<g>
+                            <line x1={xEnd+8} y1={yOrig} x2={xEnd+8} y2={yPert}
+                              stroke={isGood?"#38A169":"#E53E3E"} strokeWidth={1.5}
+                              markerStart="none" opacity={.7}/>
+                            <text x={xEnd+12} y={midY+3} fontSize={8} fill={isGood?"#38A169":"#E53E3E"}
+                              fontFamily={FONT} fontWeight={800}>
+                              {isGood?"▼":"▲"}{(Math.abs(delta)*100).toFixed(1)}%
+                            </text>
+                          </g>);
+                        })()}
+
+                        {/* ── CENTER MARKER ── */}
+                        <line x1={cx} y1={PT} x2={cx} y2={PT+ph}
+                          stroke="#D69E2E" strokeWidth={2} strokeDasharray="4,3" opacity={.9}/>
+                        <circle cx={cx} cy={cyo} r={6} fill="#D69E2E" stroke="white" strokeWidth={2}/>
+                        <text x={parseFloat(cx)+(wiCenterIdx>n*0.7?-8:8)}
+                          y={PT+16} fontSize={9} fill="#D69E2E"
+                          fontFamily={FONT} fontWeight={800}
+                          textAnchor={wiCenterIdx>n*0.7?"end":"start"}>
+                          center w{wiData[wiCenterIdx]?.week??wiCenterIdx}
+                        </text>
+
+                        {/* 50% risk threshold label */}
+                        <text x={PL-5} y={toY(0.5)+3.5} textAnchor="end" fontSize={7}
+                          fill="#CBD5E1" fontFamily={FONT}>50%</text>
+
+                        {/* Clickable week hit areas */}
+                        {wiData.map((_,i)=>(
+                          <rect key={i} x={toX(i)-7} y={PT} width={14} height={ph}
+                            fill="transparent" style={{cursor:"pointer"}}
+                            onClick={()=>setWiCenterIdx(i)}/>
+                        ))}
+
+                        {/* X week labels */}
+                        {[0,Math.floor(n/4),Math.floor(n/2),Math.floor(3*n/4),n-1]
+                          .filter((v,i,a)=>a.indexOf(v)===i&&v<n).map(i=>(
+                          <text key={i} x={toX(i).toFixed(1)} y={PT+ph+18} textAnchor="middle"
+                            fontSize={8} fill="#94A3B8" fontFamily={FONT}>
+                            w{wiData[i]?.week??i}
+                          </text>
+                        ))}
+                      </svg>
+
+                      <div style={{fontSize:10,color:"#94A3B8",fontFamily:FONT,marginTop:6,textAlign:"center"}}>
+                        Click anywhere on chart to move the center point · perturbation applies from center onward
                       </div>
 
-                      {/* Slider */}
+                      {/* ── SLIDER ── */}
                       <div style={{marginTop:12,background:"#F8FAFC",border:"2px solid #E2E8F0",
                         borderRadius:8,padding:"12px 16px"}}>
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
                           <span style={{color:"#0F172A",fontSize:11,fontWeight:800,fontFamily:FONT}}>
-                            REDUCE <span style={{color:selCol}}>{selFeat?.displayLabel??""}</span> CONTACT BY:
+                            REDUCE{" "}
+                            <span style={{color:selCol}}>{selFeat?.displayLabel??""}</span>
+                            {" "}CONTACT BY:
                           </span>
-                          <span style={{color:selCol,fontSize:20,fontWeight:800,fontFamily:FONT}}>↓{wiPerturbPct}%</span>
+                          <span style={{color:selCol,fontSize:22,fontWeight:800,fontFamily:FONT}}>↓{wiPerturbPct}%</span>
                         </div>
                         <input type="range" min={0} max={100} step={5} value={wiPerturbPct}
                           onChange={e=>setWiPerturbPct(parseInt(e.target.value))}
                           style={{width:"100%",accentColor:selCol,cursor:"pointer",height:6}}/>
                         <div style={{display:"flex",justifyContent:"space-between",marginTop:4}}>
-                          <span style={{color:"#94A3B8",fontSize:10,fontFamily:FONT}}>0% (no change)</span>
-                          <span style={{color:"#94A3B8",fontSize:10,fontFamily:FONT}}>100% (remove entirely)</span>
+                          <span style={{color:"#94A3B8",fontSize:10,fontFamily:FONT}}>0% — no change</span>
+                          <span style={{color:"#94A3B8",fontSize:10,fontFamily:FONT}}>100% — remove entirely</span>
                         </div>
                       </div>
 
-                      {/* Interpretation */}
+                      {/* ── INTERPRETATION ── */}
                       {selFeat&&(
-                        <div style={{marginTop:10,padding:"10px 14px",background:isGood?"#F0FFF4":"#FFF5F5",
+                        <div style={{marginTop:10,padding:"10px 14px",
+                          background:isGood?"#F0FFF4":"#FFF5F5",
                           border:`2px solid ${isGood?"#38A16933":"#E53E3E33"}`,borderRadius:8,
                           color:"#475569",fontSize:11,fontFamily:FONT,lineHeight:1.7}}>
                           Reducing <strong style={{color:selCol}}>{selFeat.displayLabel}</strong> by{" "}
                           <strong>{wiPerturbPct}%</strong> from week{" "}
-                          <strong style={{color:"#D69E2E"}}>W{weeklyData[wiCenterIdx]?.week??wiCenterIdx}</strong> onward{" "}
+                          <strong style={{color:"#D69E2E"}}>W{wiData[wiCenterIdx]?.week??wiCenterIdx}</strong> onward{" "}
                           {Math.abs(delta)>0.0005
                             ?<><span style={{color:isGood?"#38A169":"#E53E3E",fontWeight:800}}>
-                              {isGood?"reduces":"increases"} end risk by {Math.abs(delta*100).toFixed(2)}%
-                            </span>{" "}(surrogate model approximation — actual GCN would require full graph re-run)</>
+                              {isGood?"reduces":"increases"} end risk by{" "}
+                              {Math.abs(delta*100).toFixed(2)}%
+                            </span>{" "}(surrogate approximation)</>
                             :<span style={{color:"#94A3B8"}}>has minimal effect (Δ={delta.toFixed(5)})</span>
                           }
                         </div>
@@ -1302,21 +1467,20 @@ export default function App(){
                     </div>
                   )}
 
-                  {/* Math explanation */}
-                  <div style={{background:"#fff",border:"2px solid #E2E8F0",borderRadius:10,padding:"14px 18px"}}>
-                    <div style={{color:"#0F172A",fontSize:11,fontWeight:800,letterSpacing:1,marginBottom:8,fontFamily:FONT}}>HOW THE MATH WORKS</div>
-                    <div style={{color:"#475569",fontSize:11,fontFamily:FONT,lineHeight:1.8}}>
-                      The surrogate model learns a linear coefficient (weight) for each feature. For each week from the center point onward:
-                      <br/>
-                      <code style={{background:"#F1F5F9",padding:"2px 8px",borderRadius:4,fontSize:11,color:"#0F172A"}}>
-                        ΔLogit = −weight × (reduction%) × |value|
+                  {/* Math note */}
+                  <div style={{background:"#fff",border:"2px solid #E2E8F0",borderRadius:10,padding:"12px 16px"}}>
+                    <div style={{color:"#0F172A",fontSize:10,fontWeight:800,letterSpacing:1,marginBottom:6,fontFamily:FONT}}>
+                      HOW THE MATH WORKS
+                    </div>
+                    <div style={{color:"#64748B",fontSize:10,fontFamily:FONT,lineHeight:1.8}}>
+                      Surrogate model coefficient (weight) used as linear proxy for GCN sensitivity.
+                      For each week from center onward:{" "}
+                      <code style={{background:"#F1F5F9",padding:"1px 6px",borderRadius:3,fontSize:10,color:"#0F172A"}}>
+                        ΔLogit = −w × (reduction%) × |value|
+                      </code>{" · "}
+                      <code style={{background:"#F1F5F9",padding:"1px 6px",borderRadius:3,fontSize:10,color:"#0F172A"}}>
+                        NewRisk = σ(logit(orig) + ΔLogit)
                       </code>
-                      <br/>
-                      <code style={{background:"#F1F5F9",padding:"2px 8px",borderRadius:4,fontSize:11,color:"#0F172A"}}>
-                        NewRisk = sigmoid(logit(origRisk) + ΔLogit)
-                      </code>
-                      <br/>
-                      This is a surrogate approximation — the real EvolveGCN graph neural network would require a full re-run.
                     </div>
                   </div>
 

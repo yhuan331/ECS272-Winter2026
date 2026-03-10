@@ -7,28 +7,34 @@
 
 import { useState, useMemo } from "react";
 import { T } from "../theme";
-import { weeklyData, buildHCPTree, type TreeGroup } from "../realData";
+import { weeklyData, buildHCPTree, type TreeGroup, type WeekData } from "../realData";
 
 const FONT = T.font;
 
-interface Props { selectedWeek: number | null; }
+interface Props {
+  selectedWeek: number | null;
+  data?: WeekData[]; // optional override — used for compare patient B
+}
 
-export function HCPBarChart({ selectedWeek }: Props) {
+export function HCPBarChart({ selectedWeek, data }: Props) {
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
 
+  // Use provided data or fall back to global weeklyData
+  const source = data ?? weeklyData;
+
   const tree: TreeGroup[] = useMemo(() => {
-    if (!weeklyData.length) return [];
+    if (!source.length) return [];
     if (selectedWeek !== null) {
-      const week = weeklyData.find((w) => w.week === selectedWeek);
+      const week = source.find((w) => w.week === selectedWeek);
       if (!week?.hcpNames?.length) return [];
       return buildHCPTree(week.hcpNames.map((sp) => ({ specialty: sp, providerType: "", clinicianTitle: "" })));
     }
-    const allSnaps = weeklyData.flatMap((w) =>
+    const allSnaps = source.flatMap((w) =>
       (w.hcpNames ?? []).map((sp) => ({ specialty: sp, providerType: "", clinicianTitle: "" }))
     );
     return buildHCPTree(allSnaps);
-  }, [selectedWeek, weeklyData.length]);
+  }, [selectedWeek, source.length]);
 
   if (!tree.length) {
     return (
@@ -37,7 +43,7 @@ export function HCPBarChart({ selectedWeek }: Props) {
         color: T.textFaint, fontFamily: FONT, fontSize: 11, letterSpacing: 2,
         background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 10,
       }}>
-        {weeklyData.length ? "NO HCP DATA" : "SELECT A PATIENT"}
+        {source.length ? "NO HCP DATA" : "SELECT A PATIENT"}
       </div>
     );
   }
