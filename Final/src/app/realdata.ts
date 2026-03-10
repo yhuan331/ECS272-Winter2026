@@ -1,49 +1,37 @@
 /**
- * realData.ts
- *
- * Drop-in replacement for mockData.ts
- * Sources:
- *   - temporal_networks.json  → patient cohort (ScatterPlot)
- *   - full_va_export_with_ego.json → weekly timeline (RadialGlyph + TimelineChart)
- *
- * USAGE in your components — replace:
- *   import { ... } from './mockData';
- * with:
- *   import { ... } from './realData';
- *
- * Then call initRealData() once in main.tsx / App.tsx before rendering:
- *   import { initRealData } from './realData';
- *   await initRealData();
+ * realData.ts — enhanced with:
+ *  - globalMaxWeeks: computed dynamically across all patients
+ *  - compareWeeklyData / compareSurgeonEvents / compareTotalHCP: for side-by-side compare
+ *  - getPatientById(): lookup helper
+ *  - switchComparePatient() / clearComparePatient()
  */
-
-// ─────────────────────────────────────────────
-// TYPES (keep same shape as mockData for drop-in compat)
-// ─────────────────────────────────────────────
 
 export interface PatientDot {
   id: string;
-  x: number;       // network density 0-1  (edge_counter / max_edges)
-  y: number;       // avg risk score 0-1   (mean of weekly prob)
+  x: number;
+  y: number;
   cancer: "breast" | "colon" | "lung";
   survived: boolean;
-  weeks: number;   // number of weekly records
-  avgRisk: number; // percentage 0-100
-  maxTeam: number; // max careTeamSize across weeks
-  density: number; // edge_counter / node_counter, 0-100
+  weeks: number;
+  avgRisk: number;
+  maxTeam: number;
+  density: number;
 }
 
 export interface WeekData {
   week: number;
-  riskScore: number;         // raw model probability 0-1
-  probDelta: number;         // Δ from previous week (0 for week 0)
-  teamSize: number;          // careTeamSize
-  spikeColor: string;        // red=rising / green=falling based on probDelta
-  hcpCount: number;          // unique HCPs active this week
-  noteFrequency: number;     // notes logged this week
-  attributeSummary: string;  // top +/- SHAP feature
-  hcpNames: string[];        // provider specialties active this week
-  entropy: number;           // care team entropy
+  riskScore: number;
+  probDelta: number;
+  teamSize: number;
+  spikeColor: string;
+  hcpCount: number;
+  noteFrequency: number;
+  attributeSummary: string;
+  hcpNames: string[];
+  entropy: number;
   topSHAP: Array<{ feature: string; contribution: number }>;
+  // Full surrogate data — feature, surrogate weight, value, contribution
+  topContrib: Array<{ feature: string; contribution: number; weight: number; value: number }>;
 }
 
 export const cancerColors: Record<PatientDot["cancer"], string> = {
@@ -52,15 +40,57 @@ export const cancerColors: Record<PatientDot["cancer"], string> = {
   lung:   "#2B6CB0",
 };
 
+const NOTE_PREFIXES = new Set(["METRIC_DESC", "METRIC_GROUP", "METRIC_LOG_TYPE_C"]);
+
 // ─────────────────────────────────────────────
-// MODULE STATE  (populated by initRealData)
+// MODULE STATE
 // ─────────────────────────────────────────────
 
-export let patients:          PatientDot[] = [];
-export let weeklyData:        WeekData[]   = [];
-export let surgeonEvents:     number[]     = [];
-export let totalPatientHCP:   number       = 0;
-export let selectedPatientId: string       = "";
+export let patients:             PatientDot[] = [];
+export let weeklyData:           WeekData[]   = [];
+export let surgeonEvents:        number[]     = [];
+export let totalPatientHCP:      number       = 0;
+export let selectedPatientId:    string       = "";
+
+// Compare patient state
+export let compareWeeklyData:    WeekData[]   = [];
+export let compareSurgeonEvents: number[]     = [];
+export let compareTotalHCP:      number       = 0;
+export let comparePatientId:     string       = "";
+
+// Global max weeks across all patients (for radial glyph arc cap)
+export let globalMaxWeeks: number = 1;
+
+// ── Raw record caches (for EgoNetwork component) ──────────────────────────────
+let _egoMapCache:        Record<string, EgoRecord>            = {};
+let _temporalMapCache:   Record<string, TemporalRecord>       = {};
+let _egoNetworkCache:    Record<string, EgoNetworkRecord>     = {};
+
+// Shape of a record from ego_network.json
+export type EgoNetworkRecord = {
+  patientNodeId: string;
+  cancer:        string;
+  stage:         string;
+  vital_status:  string;
+  weeklySnapshots: Record<string, { nodes: Record<string, unknown>[]; edges: Record<string, unknown>[] }>;
+};
+
+// Merged view returned to EgoNetwork component:
+// weekly + riskDelta come from full_va_export_with_linear.json (EgoRecord)
+// weeklySnapshots comes from ego_network.json (EgoNetworkRecord)
+export type MergedEgoRecord = EgoRecord & {
+  weeklySnapshots: EgoNetworkRecord["weeklySnapshots"];
+};
+
+export function getEgoRecord(id: string): MergedEgoRecord | null {
+  const linear = _egoMapCache[id];
+  if (!linear) return null;
+  const net = _egoNetworkCache[id];
+  return { ...linear, weeklySnapshots: net?.weeklySnapshots ?? {} };
+}
+export function getTemporalRecord(id: string): TemporalRecord | null {
+  return _temporalMapCache[id] ?? null;
+}
 
 // ─────────────────────────────────────────────
 // COLOR HELPERS
@@ -96,23 +126,8 @@ function riskColor(t: number): string {
 }
 
 // ─────────────────────────────────────────────
-// TEMPORAL NETWORKS HELPERS
+// TYPES
 // ─────────────────────────────────────────────
-
-/**
- * temporal_networks.json shape (per patient key):
- * {
- *   patient_info: [...array, index 20 = "ALIVE"|other, index 2 = cancer],
- *   cancer: "COLON"|"BREAST"|"LUNG",
- *   stage: "2A" etc,
- *   node_counter: number,
- *   edge_counter: number,
- *   node_prov: { [hashId]: weekNumber },   // HCP hash → week first appeared
- *   node_note: { [noteId]: weekNumber },   // note id  → week
- *   edge_list: [[src,tgt], ...],
- *   edge_time: { "(src, tgt)": [timestamps] }
- * }
- */
 
 type TemporalRecord = {
   patient_info: (string | number | null)[];
@@ -130,9 +145,9 @@ type EgoWeek = {
   week: number;
   prob: number;
   probDelta: number;
-  teamSize: number;          // was careTeamSize
+  teamSize: number;
   entropy: number;
-  topContrib: Array<{        // was topAttributesSHAP
+  topContrib: Array<{
     feature: string;
     contribution: number;
     weight: number;
@@ -149,31 +164,21 @@ type EgoRecord = {
 };
 
 // ─────────────────────────────────────────────
-// SURGERY EVENT DETECTION
+// SURGEON DETECTION
 // ─────────────────────────────────────────────
 
-/**
- * A week is a "surgeon event" if any SHAP feature
- * related to SURGERY has a positive contribution ≥ threshold,
- * OR if a surgeon specialty appears in the HCP snapshot.
- */
 function detectSurgeonWeeks(weekly: EgoWeek[]): number[] {
   const SURGERY_KEYWORDS = ["SURGERY", "SURGICAL", "SURG", "SURGEON"];
   const SHAP_THRESHOLD = 0.003;
-
   return weekly
     .filter((w) => {
-      // Check SHAP features
       const shapHit = (w.topContrib ?? []).some(
-        (s) =>
-          s.contribution >= SHAP_THRESHOLD &&
+        (s) => s.contribution >= SHAP_THRESHOLD &&
           SURGERY_KEYWORDS.some((kw) => s.feature.toUpperCase().includes(kw))
       );
-      // Check HCP snapshot
       const hcpHit = w.weeklyHCPSnapshot?.some((h) =>
         SURGERY_KEYWORDS.some(
-          (kw) =>
-            h.specialty?.toUpperCase().includes(kw) ||
+          (kw) => h.specialty?.toUpperCase().includes(kw) ||
             h.providerType?.toUpperCase().includes(kw)
         )
       );
@@ -183,7 +188,7 @@ function detectSurgeonWeeks(weekly: EgoWeek[]): number[] {
 }
 
 // ─────────────────────────────────────────────
-// BUILD WeekData[] FROM ego record
+// BUILD WeekData[]
 // ─────────────────────────────────────────────
 
 function buildWeeklyData(
@@ -192,9 +197,6 @@ function buildWeeklyData(
 ): WeekData[] {
   const { weekly } = egoRecord;
 
-  
-
-  // Build note-per-week map from temporal_networks node_note
   const notesByWeek: Record<number, number> = {};
   if (temporalRecord?.node_note) {
     for (const week of Object.values(temporalRecord.node_note)) {
@@ -202,54 +204,32 @@ function buildWeeklyData(
     }
   }
 
-  const hcpSpecByWeek: Record<number, string[]> = {};
-  if (temporalRecord?.node_prov) {
-    for (const [_hash, week] of Object.entries(temporalRecord.node_prov)) {
-      if (!hcpSpecByWeek[week]) hcpSpecByWeek[week] = [];
-    }
-  }
-
   return weekly.map((w, i) => {
     const riskScore = Math.min(1, Math.max(0, w.prob));
-    // Week-over-week change — the evolution signal
     const prevProb = i > 0 ? weekly[i - 1].prob : w.prob;
-    const probDelta = w.prob - prevProb;  // positive = risk rising, negative = falling
+    const probDelta = w.prob - prevProb;
 
-    // Top positive and negative SHAP features → readable summary
     const shap = w.topContrib ?? [];
-    const topPos = shap
-      .filter((s) => s.contribution > 0)
-      .sort((a, b) => b.contribution - a.contribution)[0];
-    const topNeg = shap
-      .filter((s) => s.contribution < 0)
-      .sort((a, b) => a.contribution - b.contribution)[0];
+    const topPos = shap.filter((s) => s.contribution > 0).sort((a, b) => b.contribution - a.contribution)[0];
+    const topNeg = shap.filter((s) => s.contribution < 0).sort((a, b) => a.contribution - b.contribution)[0];
 
     const formatFeature = (f: string) => {
-      // "ACCESS_USER_PROV_TYPE::*PHYSICIAN: RESIDENT::present" → "Physician Resident"
       const parts = f.split("::");
       const middle = parts[1] ?? f;
-      return middle
-        .replace(/^\*/, "")
-        .replace(/_/g, " ")
-        .replace(/\b\w/g, (c) => c.toUpperCase())
-        .trim();
+      return middle.replace(/^\*/, "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()).trim();
     };
 
     let attributeSummary = "";
-    if (topPos)
-      attributeSummary += `↑ ${formatFeature(topPos.feature)} (+${(topPos.contribution * 100).toFixed(1)}%)`;
-    if (topNeg)
-      attributeSummary += `${topPos ? "  " : ""}↓ ${formatFeature(topNeg.feature)} (${(topNeg.contribution * 100).toFixed(1)}%)`;
+    if (topPos) attributeSummary += `↑ ${formatFeature(topPos.feature)} (+${(topPos.contribution * 100).toFixed(1)}%)`;
+    if (topNeg) attributeSummary += `${topPos ? "  " : ""}↓ ${formatFeature(topNeg.feature)} (${(topNeg.contribution * 100).toFixed(1)}%)`;
     if (!attributeSummary) attributeSummary = "No significant attributes";
 
-    // HCP names from weeklyHCPSnapshot
     const snapshot = w.weeklyHCPSnapshot ?? [];
     const BAD = new Set(["UNKNOWN", "nan", "NaN", "null", "undefined", "", "NONE"]);
     const hcpNames = [...new Set(snapshot
       .map((h) => {
         const sp = (h.specialty ?? "").trim();
         const pt = (h.providerType ?? "").trim();
-        // Prefer specialty, fall back to providerType, skip bad values
         if (sp && !BAD.has(sp)) return sp;
         if (pt && !BAD.has(pt)) return pt;
         return null;
@@ -262,14 +242,10 @@ function buildWeeklyData(
       riskScore,
       probDelta,
       teamSize: w.teamSize,
-      // Color encodes DIRECTION of change:
-      //   rising  (delta > +0.5%)  → red spectrum  (alarming)
-      //   falling (delta < -0.5%)  → green spectrum (improving)
-      //   stable  (|delta| ≤ 0.5%) → amber (watch)
       spikeColor: (() => {
-        if (probDelta > 0.005)  return riskColor(0.6 + Math.min(0.4, probDelta * 10));  // red
-        if (probDelta < -0.005) return riskColor(Math.max(0, 0.3 - Math.abs(probDelta) * 8)); // green
-        return riskColor(0.45); // amber = stable
+        if (probDelta > 0.005)  return riskColor(0.6 + Math.min(0.4, probDelta * 10));
+        if (probDelta < -0.005) return riskColor(Math.max(0, 0.3 - Math.abs(probDelta) * 8));
+        return riskColor(0.45);
       })(),
       hcpCount:         snapshot.length || w.teamSize,
       noteFrequency:    notesByWeek[w.week] ?? 0,
@@ -277,19 +253,23 @@ function buildWeeklyData(
       hcpNames,
       entropy:          w.entropy,
       topSHAP:          shap.slice(0, 10),
+      topContrib:       (w.topContrib ?? [])
+        .filter(c => !NOTE_PREFIXES.has(c.feature.split("::")[0]))
+        .sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight))
+        .slice(0, 20),
     };
   });
 }
 
 // ─────────────────────────────────────────────
-// BUILD PatientDot[] FROM temporal_networks + ego
+// BUILD PatientDot[]
 // ─────────────────────────────────────────────
 
 function normalizeCancer(raw: string): PatientDot["cancer"] {
   const up = raw.toUpperCase();
   if (up.includes("BREAST")) return "breast";
   if (up.includes("LUNG") || up.includes("BRONCH")) return "lung";
-  return "colon"; // colon / rectum / colorectal → colon
+  return "colon";
 }
 
 function buildPatients(
@@ -298,10 +278,10 @@ function buildPatients(
 ): PatientDot[] {
   const allEdgeCounts = Object.values(temporal).map((r) => r.edge_counter);
   const maxEdges = Math.max(...allEdgeCounts, 1);
+  void maxEdges;
   const allNodeCounts = Object.values(temporal).map((r) => r.node_counter);
   const maxNodes = Math.max(...allNodeCounts, 1);
 
-  // Compute avg prob per patient from ego weekly
   const avgProbs: Record<string, number> = {};
   for (const [id, rec] of Object.entries(ego)) {
     const probs = rec.weekly.map((w) => w.prob).filter(Number.isFinite);
@@ -317,36 +297,20 @@ function buildPatients(
   for (const [id, rec] of Object.entries(temporal)) {
     const egoRec = ego[id];
     const cancer = normalizeCancer(rec.cancer ?? "colon");
-
-    // survived: patient_info[20] === "ALIVE"
     const survived =
       Array.isArray(rec.patient_info) &&
       typeof rec.patient_info[20] === "string" &&
       (rec.patient_info[20] as string).trim().toUpperCase() === "ALIVE";
 
-    // x = node_counter (unique HCPs) normalized — better spread than edge_counter
     const x = Math.min(1, rec.node_counter / maxNodes);
-
-    // y = avg risk score normalized to 0-1 for scatter positioning
     const avgProb = avgProbs[id] ?? 0.5;
     const y = (avgProb - minProb) / probRange;
-
-    // weeks = number of weekly records
     const weeks = egoRec?.weekly?.length ?? 0;
-
-    // avgRisk as percentage
     const avgRisk = Math.round(avgProb * 1000) / 10;
-
-    // maxTeam = max teamSize
     const maxTeam = egoRec
       ? Math.max(...egoRec.weekly.map((w) => w.teamSize), 0)
       : rec.node_counter;
-
-    // density = edge_counter / node_counter * 100, capped at 100
-    const density =
-      Math.round(
-        Math.min(100, (rec.edge_counter / Math.max(rec.node_counter, 1)) * 100) * 10
-      ) / 10;
+    const density = Math.round(Math.min(100, (rec.edge_counter / Math.max(rec.node_counter, 1)) * 100) * 10) / 10;
 
     dots.push({ id, x, y, cancer, survived, weeks, avgRisk, maxTeam, density });
   }
@@ -355,26 +319,11 @@ function buildPatients(
 }
 
 // ─────────────────────────────────────────────
-// MAIN INIT — call once before rendering
+// FETCH HELPER
 // ─────────────────────────────────────────────
 
-/**
- * Call this in main.tsx / App.tsx before first render:
- *
- *   import { initRealData } from './realData';
- *   await initRealData();         // uses default paths
- *
- * Or with custom paths:
- *   await initRealData('/data/temporal_networks.json', '/data/full_va_export_with_ego.json');
- *
- * After this resolves, all exported arrays (patients, weeklyData, etc.)
- * are populated and components can render.
- */
-/** Fetch JSON with NaN/Infinity stripped (Python json dumps artefacts) */
 async function fetchJSON(path: string): Promise<unknown> {
   const text = await fetch(path).then((r) => r.text());
-  // Replace bare NaN / Infinity / -Infinity with null
-  // Replace Python-emitted NaN/Infinity in any position (array elem, value, etc.)
   const clean = text
     .replace(/\bNaN\b/g, "null")
     .replace(/-Infinity\b/g, "null")
@@ -382,42 +331,56 @@ async function fetchJSON(path: string): Promise<unknown> {
   return JSON.parse(clean);
 }
 
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+
 export async function initRealData(
-  temporalPath = "/temporal_networks.json",
-  egoPath      = "/full_va_export_with_linear.json",
+  temporalPath   = "/temporal_networks.json",
+  egoPath        = "/full_va_export_with_linear.json",
+  egoNetworkPath = "/ego_network.json",
   focusPatientId?: string,
 ): Promise<void> {
-  const [temporalRaw, egoRaw] = await Promise.all([
+  const [temporalRaw, egoRaw, egoNetRaw] = await Promise.all([
     fetchJSON(temporalPath),
     fetchJSON(egoPath),
+    fetchJSON(egoNetworkPath),
   ]);
 
   const temporal = temporalRaw as Record<string, TemporalRecord>;
-  // ego file is either an array or a dict
   let egoMap: Record<string, EgoRecord>;
   if (Array.isArray(egoRaw)) {
     egoMap = {};
-    for (const rec of egoRaw as EgoRecord[]) {
-      egoMap[rec.id] = rec;
-    }
+    for (const rec of egoRaw as EgoRecord[]) egoMap[rec.id] = rec;
   } else {
     egoMap = egoRaw as Record<string, EgoRecord>;
   }
 
-  // Build cohort scatter data
+  // ego_network.json is already keyed by patient ID
+  const egoNetwork = egoNetRaw as Record<string, EgoNetworkRecord>;
+
   patients.length = 0;
   patients.push(...buildPatients(temporal, egoMap));
 
-  // Pick focus patient: use provided id, or first patient in ego that has weekly data
+  // ── Cache raw records for EgoNetwork component ──
+  _egoMapCache      = egoMap;
+  _temporalMapCache = temporal;
+  _egoNetworkCache  = egoNetwork;
+
+  // ── Compute globalMaxWeeks across ALL patients ──
+  let maxW = 1;
+  for (const rec of Object.values(egoMap)) {
+    if (rec.weekly?.length > maxW) maxW = rec.weekly.length;
+  }
+  globalMaxWeeks = maxW;
+
   const defaultFocus =
     focusPatientId ??
     Object.keys(egoMap).find((id) => egoMap[id].weekly?.length > 0) ??
-    patients[0]?.id ??
-    "";
+    patients[0]?.id ?? "";
 
   selectedPatientId = defaultFocus;
 
-  // Build weekly data for the selected patient
   const selectedEgo = egoMap[selectedPatientId];
   const selectedTemporal = temporal[selectedPatientId] ?? null;
 
@@ -426,45 +389,34 @@ export async function initRealData(
     weeklyData.push(...buildWeeklyData(selectedEgo, selectedTemporal));
   }
 
-  // Surgeon events
   surgeonEvents.length = 0;
   if (selectedEgo?.weekly) {
     surgeonEvents.push(...detectSurgeonWeeks(selectedEgo.weekly));
   }
 
-  // Total unique HCPs across the patient's entire record
   totalPatientHCP = selectedTemporal?.node_counter ?? selectedEgo?.weekly?.reduce(
     (max, w) => Math.max(max, w.weeklyHCPSnapshot?.length ?? 0), 0
   ) ?? 0;
 }
 
 // ─────────────────────────────────────────────
-// SWITCH SELECTED PATIENT  (for interactivity)
+// SWITCH SELECTED PATIENT
 // ─────────────────────────────────────────────
 
-/**
- * Call this when the user clicks a dot in the scatter plot.
- * Pass the same temporal + ego objects you fetched in initRealData.
- * Re-exports are updated in-place so components re-render if you use state.
- */
 export function switchPatient(
   patientId: string,
   temporal: Record<string, unknown>,
   egoMap: Record<string, EgoRecord>,
 ): void {
   selectedPatientId = patientId;
-  const egoRec = egoMap[patientId];
+  const egoRec  = egoMap[patientId];
   const tempRec = (temporal[patientId] ?? null) as TemporalRecord | null;
 
   weeklyData.length = 0;
-  if (egoRec?.weekly?.length) {
-    weeklyData.push(...buildWeeklyData(egoRec, tempRec));
-  }
+  if (egoRec?.weekly?.length) weeklyData.push(...buildWeeklyData(egoRec, tempRec));
 
   surgeonEvents.length = 0;
-  if (egoRec?.weekly) {
-    surgeonEvents.push(...detectSurgeonWeeks(egoRec.weekly));
-  }
+  if (egoRec?.weekly) surgeonEvents.push(...detectSurgeonWeeks(egoRec.weekly));
 
   totalPatientHCP = tempRec?.node_counter ?? egoRec?.weekly?.reduce(
     (max, w) => Math.max(max, w.weeklyHCPSnapshot?.length ?? 0), 0
@@ -472,7 +424,63 @@ export function switchPatient(
 }
 
 // ─────────────────────────────────────────────
-// HCP TAXONOMY  (node_attr_vocabs.json grouping)
+// COMPARE PATIENT
+// ─────────────────────────────────────────────
+
+export function switchComparePatient(
+  patientId: string,
+  temporal: Record<string, unknown>,
+  egoMap: Record<string, EgoRecord>,
+): void {
+  comparePatientId = patientId;
+  const egoRec  = egoMap[patientId];
+  const tempRec = (temporal[patientId] ?? null) as TemporalRecord | null;
+
+  compareWeeklyData.length = 0;
+  if (egoRec?.weekly?.length) compareWeeklyData.push(...buildWeeklyData(egoRec, tempRec));
+
+  compareSurgeonEvents.length = 0;
+  if (egoRec?.weekly) compareSurgeonEvents.push(...detectSurgeonWeeks(egoRec.weekly));
+
+  compareTotalHCP = tempRec?.node_counter ?? egoRec?.weekly?.reduce(
+    (max, w) => Math.max(max, w.weeklyHCPSnapshot?.length ?? 0), 0
+  ) ?? 0;
+}
+
+export function clearComparePatient(): void {
+  comparePatientId = "";
+  compareWeeklyData.length = 0;
+  compareSurgeonEvents.length = 0;
+  compareTotalHCP = 0;
+}
+
+// ─────────────────────────────────────────────
+// LOOKUP HELPERS
+// ─────────────────────────────────────────────
+
+export function getPatientById(id: string): PatientDot | undefined {
+  return patients.find((p) => p.id === id);
+}
+
+// ─────────────────────────────────────────────
+// SUMMARY STATS
+// ─────────────────────────────────────────────
+
+export function getPatientSummary(data?: WeekData[]) {
+  const d = data ?? weeklyData;
+  const avgRiskAll = d.length
+    ? ((d.reduce((s, w) => s + w.riskScore, 0) / d.length) * 100).toFixed(1)
+    : "0";
+  const peakWeek = d.length
+    ? d.reduce((max, w) => w.riskScore > max.riskScore ? w : max, d[0])
+    : null;
+  const totalNotes = d.reduce((s, w) => s + w.noteFrequency, 0);
+  const avgNotes = d.length ? (totalNotes / d.length).toFixed(1) : "0";
+  return { avgRiskAll, peakWeek, avgNotes };
+}
+
+// ─────────────────────────────────────────────
+// HCP TAXONOMY
 // ─────────────────────────────────────────────
 
 export type HCPLevel1 =
@@ -567,8 +575,7 @@ export const L1_COLORS: Record<string, string> = {
   "Unknown":                     "#334155",
 };
 
-// Build treemap data from a list of HCP snapshots
-export interface TreeLeaf { name: string; value: number; color: string; specialty: string; }
+export interface TreeLeaf  { name: string; value: number; color: string; specialty: string; }
 export interface TreeGroup { name: string; value: number; color: string; children: TreeLeaf[]; }
 
 export function buildHCPTree(
@@ -596,15 +603,97 @@ export function buildHCPTree(
     .sort((a, b) => b.value - a.value);
 }
 
-// ── Summary stats for WeekInfoPanel ──────────────────────────────────────────
-export function getPatientSummary() {
-  const avgRiskAll = weeklyData.length
-    ? ((weeklyData.reduce((s, d) => s + d.riskScore, 0) / weeklyData.length) * 100).toFixed(1)
-    : "0";
-  const peakWeek = weeklyData.length
-    ? weeklyData.reduce((max, d) => d.riskScore > max.riskScore ? d : max, weeklyData[0])
-    : null;
-  const totalNotes = weeklyData.reduce((s, d) => s + d.noteFrequency, 0);
-  const avgNotes = weeklyData.length ? (totalNotes / weeklyData.length).toFixed(1) : "0";
-  return { avgRiskAll, peakWeek, avgNotes };
+// ─────────────────────────────────────────────
+// SURROGATE RANKING
+// Per-patient: avg |weight| across all weeks, sorted by importance.
+// Excludes clinical note features. Returns top 60.
+// ─────────────────────────────────────────────
+export interface SurrogateFeature {
+  feature:    string;          // e.g. "ACCESS_USER_PROV_SPECIALTY::SURGICAL_ONCOLOGY::freq|present"
+  displayLabel: string;        // e.g. "Surgical Oncology"
+  importance: number;          // avg |weight|
+  weight:     number;          // avg |weight| (same — model coefficient magnitude)
+  avgContrib: number;          // avg |contribution| across patient weeks
+  avgValue:   number;          // avg feature value
+  weekCount:  number;          // how many weeks this feature appeared
+}
+
+export function getPatientSurrogateRanking(data: WeekData[], limit = 60): SurrogateFeature[] {
+  const weightMap: Record<string, { weights: number[]; contribs: number[]; values: number[] }> = {};
+
+  for (const wk of data) {
+    for (const c of (wk.topContrib ?? [])) {
+      if (!weightMap[c.feature]) weightMap[c.feature] = { weights: [], contribs: [], values: [] };
+      weightMap[c.feature].weights.push(Math.abs(c.weight));
+      weightMap[c.feature].contribs.push(Math.abs(c.contribution));
+      weightMap[c.feature].values.push(c.value ?? 0);
+    }
+  }
+
+  const avg = (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+
+  return Object.entries(weightMap)
+    .map(([feature, d]) => {
+      const parts = feature.split("::");
+      const raw   = parts[1] ?? parts[0];
+      const displayLabel = raw.replace(/^\*/, "").replace(/_/g, " ")
+        .replace(/\b\w/g, c => c.toUpperCase()).trim();
+      return {
+        feature,
+        displayLabel,
+        importance:  avg(d.weights),
+        weight:      avg(d.weights),
+        avgContrib:  avg(d.contribs),
+        avgValue:    avg(d.values),
+        weekCount:   d.weights.length,
+      };
+    })
+    .sort((a, b) => b.importance - a.importance)
+    .slice(0, limit);
+}
+
+// ─────────────────────────────────────────────
+// WHAT-IF PERTURBATION (surrogate logit math)
+// Mirrors whatif.js / data.js getPerturbedRiskTimeline (Format B)
+//
+// Math: for each week i >= centerWeek:
+//   Find the topContrib entry matching hcpSpec (fuzzy)
+//   deltaLogit = -weight × (perturbPct/100) × |value|
+//   newLogit   = log(risk / (1-risk)) + deltaLogit
+//   newRisk    = sigmoid(newLogit)
+// ─────────────────────────────────────────────
+
+// Fuzzy-match HCP display name → feature string
+// Mirrors hcpMatchesFeature() from whatif.js
+export function hcpMatchesFeature(hcpSpec: string, featureName: string): boolean {
+  if (!hcpSpec || !featureName) return false;
+  const norm = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, " ").replace(/\s+/g, " ").trim();
+  const hcp  = norm(hcpSpec);
+  const feat = norm(featureName);
+  if (!feat.includes("FREQ") && !feat.includes("PRESENT")) return false;
+  if (feat.includes(hcp)) return true;
+  const hcpTokens  = hcp.split(" ").filter(t => t.length > 2);
+  const featTokens = new Set(feat.split(" "));
+  const matches    = hcpTokens.filter(t => featTokens.has(t));
+  if (matches.length >= Math.min(2, hcpTokens.length)) return true;
+  if (hcp.length >= 5 && feat.includes(hcp.slice(0, 5))) return true;
+  return false;
+}
+
+export function computePerturbedRisk(
+  data: WeekData[],
+  centerWeekIdx: number,    // index into data[] (not week number)
+  perturbPct: number,       // 0–100: % reduction
+  featureName: string,      // full feature string to match
+): number[] {
+  return data.map((wk, i) => {
+    const origRisk = wk.riskScore;
+    if (i < centerWeekIdx) return origRisk;
+    const contrib = wk.topContrib.find(c => c.feature === featureName ||
+      hcpMatchesFeature(featureName.split("::")[1] ?? featureName, c.feature));
+    if (!contrib) return origRisk;
+    const deltaLogit = -contrib.weight * (perturbPct / 100) * Math.abs(contrib.value);
+    const logit      = Math.log(origRisk / Math.max(1 - origRisk, 1e-9));
+    return Math.max(0, Math.min(1, 1 / (1 + Math.exp(-(logit + deltaLogit)))));
+  });
 }

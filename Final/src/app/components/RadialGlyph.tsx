@@ -1,29 +1,27 @@
 /**
  * RadialGlyph.tsx
  *
- * Two display modes (week order NEVER changes — always week 0 → last):
+ * Week-cap arc: each patient's glyph only fills
+ *   (patientWeeks / globalMaxWeeks) × 360°
+ * so patients with fewer weeks visually take up less of the circle,
+ * enabling direct duration comparison between patients.
  *
- *  "prob"   — GNN Survival Prediction
- *               spike height = raw prob (0→1)
- *               spike color  = death risk gradient:
- *                              green (low death risk) → yellow → red (high death risk)
- *
- *  "delta"  — Δ Prob (default, original behaviour)
- *               spike height = |probDelta|
- *               spike color  = direction: red=rising, green=falling, amber=stable
+ * Two display modes:
+ *  "prob"   — GNN Survival Prediction (height = raw prob, color = death risk gradient)
+ *  "delta"  — Δ Prob (height = |probDelta|, color = direction)
  */
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { weeklyData, surgeonEvents, totalPatientHCP } from "../realData";
+import { weeklyData, surgeonEvents, totalPatientHCP, globalMaxWeeks } from "../realData";
 import type { WeekData } from "../realData";
 import { T } from "../theme";
 
 const FONT = T.font;
 const CX = 350;
 const CY = 280;
-const BASE_R = 130;
+const BASE_R   = 130;
 const CENTER_R = 110;
-const SIZE = 700;
+const SIZE     = 700;
 
 export type ViewMode = "prob" | "delta";
 
@@ -37,19 +35,14 @@ function lerpColor(a: string, b: string, t: number): string {
   return `#${r.toString(16).padStart(2,"0")}${g.toString(16).padStart(2,"0")}${bl.toString(16).padStart(2,"0")}`;
 }
 
-/**
- * Survival color: prob is SURVIVAL probability (high = good).
- * high prob → green (safe)
- * low  prob → red   (danger)
- */
 function survivalColor(prob: number): string {
   const stops = [
-    { t: 0.0,  color: "#276749" }, // deep green — low death prob = safe
+    { t: 0.0,  color: "#276749" },
     { t: 0.25, color: "#68D391" },
     { t: 0.45, color: "#DD6B20" },
     { t: 0.55, color: "#D69E2E" },
     { t: 0.75, color: "#E53E3E" },
-    { t: 1.0,  color: "#9B2335" }, // deep red — high death prob = danger
+    { t: 1.0,  color: "#9B2335" },
   ];
   const p = Math.min(1, Math.max(0, prob));
   if (p <= stops[0].t) return stops[0].color;
@@ -68,42 +61,53 @@ function polarToCart(cx: number, cy: number, r: number, angleDeg: number) {
   return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
 }
 
+// Draw an arc path segment (for the unused-arc ghost ring)
+function arcPath(cx: number, cy: number, r: number, startDeg: number, endDeg: number): string {
+  const s = polarToCart(cx, cy, r, startDeg);
+  const e = polarToCart(cx, cy, r, endDeg);
+  const span = endDeg - startDeg;
+  const largeArc = span > 180 ? 1 : 0;
+  return `M${s.x},${s.y} A${r},${r} 0 ${largeArc} 1 ${e.x},${e.y}`;
+}
+
 interface RadialProps {
   selectedWeek: number | null;
   onSelectWeek: (week: number | null) => void;
   onHoverWeek: (data: WeekData | null) => void;
-
-  // NEW: allow parent to control mode
   mode?: ViewMode;
   onModeChange?: (mode: ViewMode) => void;
+  // For comparison layout: smaller/compact rendering
+  compact?: boolean;
+  accentColor?: string; // override accent for compare panel
 }
 
-export function RadialGlyph({ selectedWeek, onSelectWeek, onHoverWeek, mode: modeProp, onModeChange }: RadialProps) {
+export function RadialGlyph({
+  selectedWeek,
+  onSelectWeek,
+  onHoverWeek,
+  mode: modeProp,
+  onModeChange,
+  compact = false,
+  accentColor,
+}: RadialProps) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const [localMode, setLocalMode]   = useState<ViewMode>(modeProp ?? "delta");
 
-  // internal fallback if parent doesn't control it
-  const [localMode, setLocalMode] = useState<ViewMode>(modeProp ?? "delta");
-
-  // if parent changes mode, sync local
   useEffect(() => {
     if (modeProp) setLocalMode(modeProp);
   }, [modeProp]);
 
-  // use the parent-controlled mode if provided, else local
   const mode: ViewMode = modeProp ?? localMode;
-  // const handleSetMode = (m: ViewMode) => {
-  //   setMode(m);
-  //   onModeChange(m);
-  // };
-const svgRef = useRef<SVGSVGElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
   const handleSetMode = (m: ViewMode) => {
-  setLocalMode(m);
-  onModeChange?.(m);
-};
+    setLocalMode(m);
+    onModeChange?.(m);
+  };
 
   if (!weeklyData.length) return (
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"center",
-      height:"100%", color:T.textFaint, fontFamily:FONT, fontSize:12, letterSpacing:2 }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center",
+      height: "100%", color: T.textFaint, fontFamily: FONT, fontSize: 12, letterSpacing: 2 }}>
       SELECT A PATIENT
     </div>
   );
@@ -114,20 +118,23 @@ const svgRef = useRef<SVGSVGElement>(null);
   const avgRiskAll = weeklyData.length
     ? ((weeklyData.reduce((s, d) => s + d.riskScore, 0) / weeklyData.length) * 100).toFixed(1)
     : "0";
-
-    // TEAM VOLATILITY = average absolute week-to-week change in team size
   const avgAbsDeltaTeam =
     weeklyData.length > 1
-      ? (
-          weeklyData.slice(1).reduce((s, d, i) => {
-            const prev = weeklyData[i]?.teamSize ?? 0;
-            const cur  = d?.teamSize ?? 0;
-            return s + Math.abs(cur - prev);
-          }, 0) / (weeklyData.length - 1)
-        ).toFixed(1)
+      ? (weeklyData.slice(1).reduce((s, d, i) => {
+          const prev = weeklyData[i]?.teamSize ?? 0;
+          return s + Math.abs((d?.teamSize ?? 0) - prev);
+        }, 0) / (weeklyData.length - 1)).toFixed(1)
       : "0.0";
-  const numWeeks     = weeklyData.length;
-  const anglePerWeek = 360 / Math.max(numWeeks, 1);
+
+  const numWeeks = weeklyData.length;
+
+  // ── WEEK CAP ARC ────────────────────────────────────────────────────────
+  // Each patient uses only (numWeeks / globalMaxWeeks) × 360° of the circle.
+  // globalMaxWeeks is the max across ALL patients in the dataset.
+  const safeGlobalMax = Math.max(globalMaxWeeks, numWeeks, 1);
+  const arcFraction   = numWeeks / safeGlobalMax;        // 0 → 1
+  const usedArcDeg    = arcFraction * 360;               // degrees used
+  const anglePerWeek  = usedArcDeg / Math.max(numWeeks, 1);
 
   // ── Normalisation bounds ─────────────────────────────────────────────────
   const maxProb   = Math.max(...weeklyData.map(d => d.riskScore), 0.001);
@@ -138,9 +145,9 @@ const svgRef = useRef<SVGSVGElement>(null);
   const minTeam   = Math.min(...weeklyData.map(d => d.teamSize), 0);
   const teamRange = maxTeam - minTeam || 1;
 
-  // ── Spike geometry (week order = chronological always) ───────────────────
+  // ── Spike geometry ───────────────────────────────────────────────────────
   const spikePaths = weeklyData.map((d, i) => {
-    const centerAngle = i * anglePerWeek;
+    const centerAngle = i * anglePerWeek;  // stays within usedArcDeg
 
     let h: number;
     let color: string;
@@ -213,14 +220,17 @@ const svgRef = useRef<SVGSVGElement>(null);
 
   // ── Mode config ──────────────────────────────────────────────────────────
   const modeConfig = {
-    prob:  { label: "GNN Death Probability", short: "GNN PROB (DEATH)", accent: "#38A169",
-             legend: [{ color:"#276749", label:"low death risk" }, { color:"#D69E2E", label:"mid" }, { color:"#9B2335", label:"high death risk" }],
+    prob:  { label: "GNN Death Probability", short: "GNN PROB (DEATH)", accent: accentColor ?? "#38A169",
+             legend: [{ color: "#276749", label: "low death risk" }, { color: "#D69E2E", label: "mid" }, { color: "#9B2335", label: "high death risk" }],
              encoding: "height = prob · width = team size" },
-    delta: { label: "Δ Week-over-Week Change",  short: "Δ PROB",  accent: "#E53E3E",
-             legend: [{ color:"#E53E3E", label:"rising" }, { color:"#D69E2E", label:"stable" }, { color:"#38A169", label:"falling" }],
+    delta: { label: "Δ Week-over-Week Change", short: "Δ PROB", accent: accentColor ?? "#E53E3E",
+             legend: [{ color: "#E53E3E", label: "rising" }, { color: "#D69E2E", label: "stable" }, { color: "#38A169", label: "falling" }],
              encoding: "height = |Δ| · width = team size" },
   } as const;
   const active = modeConfig[mode];
+
+  // Percentage of the circle used (for label)
+  const arcPct = Math.round(arcFraction * 100);
 
   return (
     <div style={{
@@ -230,7 +240,7 @@ const svgRef = useRef<SVGSVGElement>(null);
       display: "flex", flexDirection: "column",
     }}>
 
-      {/* ── Tab switcher ───────────────────────────────────────────────── */}
+      {/* ── Tab switcher ── */}
       <div style={{ display: "flex", flexShrink: 0, borderBottom: `1px solid ${T.border}` }}>
         {(["prob", "delta"] as ViewMode[]).map((m, mi) => {
           const cfg      = modeConfig[m];
@@ -239,8 +249,7 @@ const svgRef = useRef<SVGSVGElement>(null);
             <button key={m} onClick={() => handleSetMode(m)} style={{
               flex: 1, padding: "9px 0 7px",
               fontFamily: FONT, fontSize: 10, fontWeight: 700, letterSpacing: 1,
-              cursor: "pointer",
-              border: "none",
+              cursor: "pointer", border: "none",
               borderBottom: isActive ? `2px solid ${cfg.accent}` : "2px solid transparent",
               borderRight: mi === 0 ? `1px solid ${T.border}` : "none",
               background: isActive ? `${cfg.accent}10` : "transparent",
@@ -253,7 +262,7 @@ const svgRef = useRef<SVGSVGElement>(null);
         })}
       </div>
 
-      {/* ── Legend strip ───────────────────────────────────────────────── */}
+      {/* ── Legend + arc indicator strip ── */}
       <div style={{
         display: "flex", alignItems: "center", gap: 10,
         padding: "5px 14px", borderBottom: `1px solid ${T.border}`,
@@ -263,15 +272,30 @@ const svgRef = useRef<SVGSVGElement>(null);
           {active.label}
         </span>
         {active.legend.map(l => <LegendDot key={l.label} color={l.color} label={l.label} />)}
-        <span style={{ marginLeft: "auto", color: T.textFaint, fontSize: 9, fontFamily: FONT }}>
-          {active.encoding}
+        {/* Arc fill indicator */}
+        <span style={{
+          marginLeft: "auto", display: "flex", alignItems: "center", gap: 5,
+          color: T.textFaint, fontSize: 9, fontFamily: FONT,
+        }}>
+          <span style={{
+            display: "inline-block", width: 32, height: 5, borderRadius: 3,
+            background: T.bgInset, overflow: "hidden", position: "relative",
+          }}>
+            <span style={{
+              position: "absolute", left: 0, top: 0, height: "100%",
+              width: `${arcPct}%`,
+              background: active.accent, borderRadius: 3, opacity: 0.7,
+            }} />
+          </span>
+          <span>{numWeeks}wk / {safeGlobalMax}wk max ({arcPct}%)</span>
         </span>
       </div>
 
-      {/* ── SVG ────────────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      {/* ── SVG ── */}
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", minHeight: 0 }}>
         <svg ref={svgRef} viewBox={`0 0 ${SIZE} ${SIZE}`}
-          style={{ width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%" }}>
+          preserveAspectRatio="xMidYMid meet"
+          style={{ width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%", display: "block" }}>
           <defs>
             {spikePaths.map((s, i) => (
               <radialGradient key={`sg${i}`} id={`spikeGrad${i}`} cx="50%" cy="50%" r="50%">
@@ -286,6 +310,18 @@ const svgRef = useRef<SVGSVGElement>(null);
               <feGaussianBlur in="SourceGraphic" stdDeviation="4" />
             </filter>
           </defs>
+
+          {/* Ghost arc showing unused portion of circle */}
+          {arcFraction < 0.99 && (
+            <path
+              d={arcPath(CX, CY, BASE_R, usedArcDeg, 360)}
+              fill="none"
+              stroke={T.border}
+              strokeWidth={1.5}
+              strokeDasharray="4,4"
+              opacity={0.5}
+            />
+          )}
 
           {/* Center disc */}
           {segments.map((seg, si) => {
@@ -311,42 +347,35 @@ const svgRef = useRef<SVGSVGElement>(null);
             const vp = polarToCart(CX, CY, CENTER_R * 0.62, -30);
             return (
               <g>
-                <text x={lp.x} y={lp.y - 3} textAnchor="middle" dominantBaseline="central" fill={T.textMuted} fontSize={9} fontFamily={FONT}>TOTAL UNIQUE HCP</text>
-                <text x={vp.x} y={vp.y + 3} textAnchor="middle" dominantBaseline="central" fill="#2B6CB0" fontSize={16} fontFamily={FONT} fontWeight={700}>{totalPatientHCP}</text>
+                <text x={lp.x} y={lp.y - 3} textAnchor="middle" dominantBaseline="central"
+                  fill={T.textMuted} fontSize={9} fontFamily={FONT}>TOTAL UNIQUE HCP</text>
+                <text x={vp.x} y={vp.y + 3} textAnchor="middle" dominantBaseline="central"
+                  fill="#2B6CB0" fontSize={16} fontFamily={FONT} fontWeight={700}>{totalPatientHCP}</text>
               </g>
             );
           })()}
 
-                    {/* TEAM VOLATILITY */}
+          {/* TEAM VOLATILITY */}
           {(() => {
             const lp = polarToCart(CX, CY, CENTER_R * 0.45, 90);
             const vp = polarToCart(CX, CY, CENTER_R * 0.62, 90);
             return (
               <g>
-                <text
-                  x={lp.x} y={lp.y - 3}
-                  textAnchor="middle" dominantBaseline="central"
-                  fill={T.textMuted} fontSize={9} fontFamily={FONT}
-                >
-                  TEAM VOLATILITY
-                </text>
-                <text
-                  x={vp.x} y={vp.y + 3}
-                  textAnchor="middle" dominantBaseline="central"
-                  fill="#38A169" fontSize={13} fontFamily={FONT} fontWeight={700}
-                >
-                  {avgAbsDeltaTeam}/wk
-                </text>
+                <text x={lp.x} y={lp.y - 3} textAnchor="middle" dominantBaseline="central"
+                  fill={T.textMuted} fontSize={9} fontFamily={FONT}>TEAM VOLATILITY</text>
+                <text x={vp.x} y={vp.y + 3} textAnchor="middle" dominantBaseline="central"
+                  fill="#38A169" fontSize={13} fontFamily={FONT} fontWeight={700}>{avgAbsDeltaTeam}/wk</text>
               </g>
             );
           })()}
-          {/* ATTR SUMMARY */}
+
+          {/* AVG RISK */}
           {(() => {
             const lp = polarToCart(CX, CY, CENTER_R * 0.32, 210);
             return (
               <g>
-                {/* <text x={lp.x} y={lp.y - 12} textAnchor="middle" dominantBaseline="central" fill={T.textMuted} fontSize={9} fontFamily={FONT}>RISK OVERVIEW (Avg Risk %)</text> */}
-                <text x={lp.x} y={lp.y + 1}  textAnchor="middle" dominantBaseline="central" fill="#D69E2E" fontSize={11} fontFamily={FONT}>(Avg Predicted Risk %) {avgRiskAll}%</text>
+                <text x={lp.x} y={lp.y + 1} textAnchor="middle" dominantBaseline="central"
+                  fill="#D69E2E" fontSize={11} fontFamily={FONT}>(Avg Risk) {avgRiskAll}%</text>
               </g>
             );
           })()}
@@ -415,16 +444,19 @@ const svgRef = useRef<SVGSVGElement>(null);
             const angle = spikePaths[hoveredIdx].centerAngle;
             const inner = polarToCart(CX, CY, BASE_R - 5, angle);
             const outer = polarToCart(CX, CY, spikePaths[hoveredIdx].outerR + 14, angle);
-            return <line x1={inner.x} y1={inner.y} x2={outer.x} y2={outer.y} stroke="rgba(0,0,0,0.2)" strokeWidth={0.8} strokeDasharray="3,3" />;
+            return <line x1={inner.x} y1={inner.y} x2={outer.x} y2={outer.y}
+              stroke="rgba(0,0,0,0.2)" strokeWidth={0.8} strokeDasharray="3,3" />;
           })()}
 
           {/* Week annotations */}
           <line x1={w0S.x} y1={w0S.y} x2={w0E.x} y2={w0E.y} stroke={T.textMuted} strokeWidth={1} strokeDasharray="4,4" />
           <text x={w0L.x} y={w0L.y} textAnchor="middle" fill={T.textSecondary} fontSize={10} fontFamily={FONT}>week 0</text>
-          <line x1={wLS.x} y1={wLS.y} x2={wLE.x} y2={wLE.y} stroke={T.textFaint} strokeWidth={1} strokeDasharray="4,4" />
-          <text x={wLL.x} y={wLL.y} textAnchor="middle" fill={T.textMuted} fontSize={10} fontFamily={FONT} dominantBaseline="central">
-            last week (w{numWeeks - 1})
-          </text>
+          {numWeeks > 1 && <>
+            <line x1={wLS.x} y1={wLS.y} x2={wLE.x} y2={wLE.y} stroke={T.textFaint} strokeWidth={1} strokeDasharray="4,4" />
+            <text x={wLL.x} y={wLL.y} textAnchor="middle" fill={T.textMuted} fontSize={10} fontFamily={FONT} dominantBaseline="central">
+              last w{numWeeks - 1}
+            </text>
+          </>}
 
           {/* Surgeon event dots */}
           {surgeonEvents.map(weekNum => {
@@ -444,7 +476,7 @@ const svgRef = useRef<SVGSVGElement>(null);
   );
 }
 
-// ── Small legend dot ──────────────────────────────────────────────────────────
+// ── Small legend dot ─────────────────────────────────────────────────────────
 function LegendDot({ color, label }: { color: string; label: string }) {
   return (
     <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -454,7 +486,7 @@ function LegendDot({ color, label }: { color: string; label: string }) {
   );
 }
 
-// ── Panel components ──────────────────────────────────────────────────────────
+// ── Panel components ─────────────────────────────────────────────────────────
 
 export function Stat({ label, value, color, small }: { label: string; value: string; color: string; small?: boolean }) {
   return (
@@ -492,11 +524,7 @@ export function EmptyPanel({ avgRiskAll, peakWeek, totalPatientHCP, avgNotes, mo
             <Stat label="TOTAL HCP"  value={String(totalPatientHCP)} color="#2B6CB0" />
             <Stat label="NOTES / WK" value={avgNotes}                color="#38A169" />
             {peakWeek && (
-              <Stat
-                label="PEAK WEEK"
-                value={`W${peakWeek.week} · ${(peakWeek.riskScore * 100).toFixed(0)}%`}
-                color="#E53E3E"
-              />
+              <Stat label="PEAK WEEK" value={`W${peakWeek.week} · ${(peakWeek.riskScore * 100).toFixed(0)}%`} color="#E53E3E" />
             )}
           </>
         ) : (
@@ -505,16 +533,10 @@ export function EmptyPanel({ avgRiskAll, peakWeek, totalPatientHCP, avgNotes, mo
             <Stat label="NOTES / WK" value={avgNotes}                color="#38A169" />
             {peakDeltaWeek && (
               <>
-                <Stat
-                  label="LARGEST Δ WEEK"
-                  value={`W${peakDeltaWeek.week}`}
-                  color="#E53E3E"
-                />
-                <Stat
-                  label="PEAK Δ VALUE"
+                <Stat label="LARGEST Δ WEEK" value={`W${peakDeltaWeek.week}`} color="#E53E3E" />
+                <Stat label="PEAK Δ VALUE"
                   value={`${peakDeltaWeek.probDelta >= 0 ? "+" : ""}${(peakDeltaWeek.probDelta * 100).toFixed(1)}%`}
-                  color={peakDeltaWeek.spikeColor}
-                />
+                  color={peakDeltaWeek.spikeColor} />
               </>
             )}
           </>
@@ -537,37 +559,26 @@ export function WeekPanel({ data, pinned, mode = "delta" }: { data: WeekData; pi
         )}
         <span style={{ color: T.textFaint, fontSize: 9, marginLeft: "auto" }}>
           {pinned
-            ? <span style={{ color:"#2B6CB0", background:"#EEF2FF", padding:"2px 8px", borderRadius:4, border:"1px solid #2B6CB044", fontSize:9 }}>📌 PINNED — click again to unpin</span>
+            ? <span style={{ color: "#2B6CB0", background: "#EEF2FF", padding: "2px 8px", borderRadius: 4, border: "1px solid #2B6CB044", fontSize: 9 }}>
+                📌 PINNED — click again to unpin
+              </span>
             : "hover or click spike to inspect"
           }
         </span>
       </div>
 
-      {/* ── Top stats row — switches based on mode ── */}
-      {/* IMPORTANT: parent must pass mode prop here or it defaults to "delta" */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px 16px", marginBottom: 14 }}>
         {mode === "prob" ? (
-          <Stat
-            label="GNN DEATH RISK (CUMULATIVE)"
-            value={`${(data.riskScore * 100).toFixed(1)}%`}
-            color={data.spikeColor}
-          />
+          <Stat label="GNN DEATH RISK (CUMULATIVE)" value={`${(data.riskScore * 100).toFixed(1)}%`} color={data.spikeColor} />
         ) : (
-          <Stat
-            label="Δ PROB THIS WEEK"
+          <Stat label="Δ PROB THIS WEEK"
             value={`${data.probDelta >= 0 ? "+" : ""}${(data.probDelta * 100).toFixed(2)}%`}
-            color={data.spikeColor}
-          />
+            color={data.spikeColor} />
         )}
         <Stat label="TEAM SIZE" value={String(data.teamSize ?? "—")} color="#6B9FFF" />
-        <Stat
-          label="CARE DIVERSITY"
-          value={
-            data.entropy == null ? "—"
-            : `${data.entropy.toFixed(2)} · ${data.entropy < 1.5 ? "LOW" : data.entropy < 2.5 ? "MED" : "HIGH"}`
-          }
-          color="#A78BFA"
-        />
+        <Stat label="CARE DIVERSITY"
+          value={data.entropy == null ? "—" : `${data.entropy.toFixed(2)} · ${data.entropy < 1.5 ? "LOW" : data.entropy < 2.5 ? "MED" : "HIGH"}`}
+          color="#A78BFA" />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -583,23 +594,22 @@ export function WeekPanel({ data, pinned, mode = "delta" }: { data: WeekData; pi
           <div style={{ color: T.textSecondary, fontSize: 12, fontWeight: 700, marginBottom: 4, letterSpacing: 1 }}>
             TOP ATTRIBUTES ({data.topSHAP?.length ?? 0})
           </div>
-          {/* ── FIXED: was "raises survival score" — corrected to death risk ── */}
           <div style={{ color: T.textMuted, fontSize: 9, marginBottom: 4 }}>
             red = raises death risk · green = lowers death risk
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             {(data.topSHAP ?? []).slice(0, 10).map((s, si) => {
-              const isPos = s.contribution >= 0;
-              const parts = s.feature.split("::");
-              const field = (parts[0] ?? "").replace(/_/g, " ").replace("ACCESS USER ", "").toLowerCase();
-              const value = (parts[1] ?? "").replace(/^\*/, "").toLowerCase();
-              const label = `${field}: ${value}`;
-              const barW  = Math.min(60, Math.abs(s.contribution) * 30);
+              const isPos  = s.contribution >= 0;
+              const parts  = s.feature.split("::");
+              const field  = (parts[0] ?? "").replace(/_/g, " ").replace("ACCESS USER ", "").toLowerCase();
+              const value  = (parts[1] ?? "").replace(/^\*/, "").toLowerCase();
+              const label  = `${field}: ${value}`;
+              const barW   = Math.min(60, Math.abs(s.contribution) * 30);
               return (
                 <div key={si} style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 4 }}>
                   <span style={{ color: T.textSecondary, fontSize: 11, flex: 1, wordBreak: "break-word", lineHeight: 1.4 }}>{label}</span>
-                  <div style={{ width: barW, height: 6, borderRadius: 3, background: isPos ? '#E53E3E' : '#38A169', opacity: 0.8, flexShrink: 0 }} />
-                  <span style={{ color: isPos ? '#E53E3E' : '#38A169', fontSize: 12, fontWeight: 700, minWidth: 52, textAlign: "right" }}>
+                  <div style={{ width: barW, height: 6, borderRadius: 3, background: isPos ? "#E53E3E" : "#38A169", opacity: 0.8, flexShrink: 0 }} />
+                  <span style={{ color: isPos ? "#E53E3E" : "#38A169", fontSize: 12, fontWeight: 700, minWidth: 52, textAlign: "right" }}>
                     {isPos ? "+" : ""}{s.contribution.toFixed(3)}
                   </span>
                 </div>
@@ -621,33 +631,33 @@ export interface WeekInfoPanelProps {
   avgNotes: string;
   mode: ViewMode;
   peakDeltaWeek?: WeekData | null;
+  accentBorder?: string;
+  label?: string;
 }
 
 export function WeekInfoPanel({
-  activeData,
-  pinnedWeek,
-  avgRiskAll,
-  peakWeek,
-  totalHCP,
-  avgNotes,
-  mode,
-  peakDeltaWeek,
+  activeData, pinnedWeek, avgRiskAll, peakWeek,
+  totalHCP, avgNotes, mode, peakDeltaWeek, accentBorder, label,
 }: WeekInfoPanelProps) {
   return (
     <div style={{
-      height: "100%", background: T.bgCard, border: `1px solid ${T.border}`,
+      height: "100%", background: T.bgCard,
+      border: `1px solid ${accentBorder ?? T.border}`,
       borderRadius: 10, boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
       padding: "18px 22px", overflowY: "auto", fontFamily: T.font,
     }}>
+      {label && (
+        <div style={{
+          fontSize: 9, fontWeight: 700, letterSpacing: 1.5,
+          color: accentBorder ?? T.textMuted, marginBottom: 10,
+          textTransform: "uppercase",
+        }}>{label}</div>
+      )}
       {activeData
         ? <WeekPanel data={activeData} pinned={!!pinnedWeek} mode={mode} />
         : <EmptyPanel
-            avgRiskAll={avgRiskAll}
-            peakWeek={peakWeek}
-            totalPatientHCP={totalHCP}
-            avgNotes={avgNotes}
-            mode={mode}
-            peakDeltaWeek={peakDeltaWeek}
+            avgRiskAll={avgRiskAll} peakWeek={peakWeek} totalPatientHCP={totalHCP}
+            avgNotes={avgNotes} mode={mode} peakDeltaWeek={peakDeltaWeek}
           />
       }
     </div>
