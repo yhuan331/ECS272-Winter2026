@@ -1039,25 +1039,52 @@ export default function App(){
           const selCol  = selGrp ? (SPEC_COLORS[selGrp]??"#0284c7") : "#0284c7";
 
           // ── SVG chart geometry ───────────────────────────────────────────
-          // Taller chart for better readability
-          const CW=640, CH=180, PL=48, PR=20, PT=16, PB=28;
+          // Auto-scale Y to actual data range so trajectory variation is visible
+          const CW=640, CH=180, PL=52, PR=20, PT=16, PB=28;
           const pw=CW-PL-PR, ph=CH-PT-PB;
           const n=wiData.length;
+          // Auto-scale Y to show both trajectories clearly.
+          // Use a minimum visible span so a perfectly flat original still renders readably.
+          const allVals  = [...origRisks, ...pertRisks];
+const dataMin  = Math.min(...allVals);
+const dataMax  = Math.max(...allVals);
+const dataSpan = dataMax - dataMin;
+
+const minSpan = 0.08;
+const pad = Math.max(dataSpan * 0.15, (minSpan - dataSpan) / 2, 0.02);
+
+// keep some fixed breathing room so lines do not sit on the frame
+const floorPad = 0.03;   // 3%
+const ceilPad  = 0.03;   // 3%
+
+let yMin = dataMin - pad;
+let yMax = dataMax + pad;
+
+// if line hits 0 or 1, still keep it visually inside chart
+yMin = Math.min(yMin, dataMin - floorPad);
+yMax = Math.max(yMax, dataMax + ceilPad);
+
+// final clamp, but not exactly to the data
+yMin = Math.max(-0.02, yMin);
+yMax = Math.min(1.02, yMax);
+
+const yRange = Math.max(yMax - yMin, minSpan);
           const toX=(i:number)=>PL+(i/(Math.max(n-1,1)))*pw;
-          const toY=(v:number)=>PT+ph-(Math.max(0,Math.min(1,v)))*ph;
+          const toY=(v:number)=>PT+ph-((Math.max(yMin,Math.min(yMax,v))-yMin)/yRange)*ph;
 
-          // Original line: full span, always gray dashed
-          const origPts = origRisks.map((v,i)=>`${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(" L");
+         const origPts = origRisks
+          .map((v, i) => `${toX(i).toFixed(1)},${toY(v).toFixed(1)}`)
+          .join(" ");
 
-          // Perturbed line: drawn in two segments
-          //   Segment 1 (before center): matches original exactly — draw as solid accent color
-          //   Segment 2 (from center): the actual perturbed values — solid accent color
-          // This way the perturbed line "splits off" visually at the center marker
-          const beforeCenterPts = origRisks.slice(0, wiCenterIdx+1)
-            .map((v,i)=>`${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(" L");
-          const afterCenterPts  = pertRisks.slice(wiCenterIdx)
-            .map((v,j)=>`${toX(wiCenterIdx+j).toFixed(1)},${toY(v).toFixed(1)}`).join(" L");
+        const beforeCenterPts = origRisks
+          .slice(0, wiCenterIdx + 1)
+          .map((v, i) => `${toX(i).toFixed(1)},${toY(v).toFixed(1)}`)
+          .join(" ");
 
+        const afterCenterPts = pertRisks
+          .slice(wiCenterIdx)
+          .map((v, j) => `${toX(wiCenterIdx + j).toFixed(1)},${toY(v).toFixed(1)}`)
+          .join(" ");
           // Shaded fill between original and perturbed AFTER center
           const origAfterPts = origRisks.slice(wiCenterIdx)
             .map((v,j)=>`${toX(wiCenterIdx+j).toFixed(1)},${toY(v).toFixed(1)}`).join(" L");
@@ -1317,16 +1344,18 @@ export default function App(){
                       <svg viewBox={`0 0 ${CW} ${CH}`} style={{width:"100%",display:"block",borderRadius:6,
                         border:"1px solid #F1F5F9",background:"#FAFBFC"}}>
 
-                        {/* Y grid lines + labels */}
-                        {[0,.25,.5,.75,1].map(v=>{
-                          const y=toY(v).toFixed(1);
-                          return(<g key={v}>
+                        {/* Y grid lines + labels — auto-scaled to data range */}
+                        {[0,.25,.5,.75,1].map(t=>{
+                          const v = yMin + t * yRange;
+                          const y = toY(v).toFixed(1);
+                          const isMid = t === 0.5;
+                          return(<g key={t}>
                             <line x1={PL} y1={y} x2={CW-PR} y2={y}
-                              stroke={v===0.5?"#E2E8F0":"#F1F5F9"} strokeWidth={v===0.5?1.2:.7}
-                              strokeDasharray={v===0.5?"4,3":""}/>
+                              stroke={isMid?"#E2E8F0":"#F1F5F9"} strokeWidth={isMid?1.2:.7}
+                              strokeDasharray={isMid?"4,3":""}/>
                             <text x={PL-5} y={parseFloat(y)+3.5} textAnchor="end"
                               fontSize={8} fill="#94A3B8" fontFamily={FONT}>
-                              {(v*100).toFixed(0)}%
+                              {(v*100).toFixed(1)}%
                             </text>
                           </g>);
                         })}
@@ -1334,23 +1363,43 @@ export default function App(){
                         {/* X axis baseline */}
                         <line x1={PL} y1={PT+ph} x2={CW-PR} y2={PT+ph} stroke="#E2E8F0" strokeWidth={1}/>
 
-                        {/* Shaded delta area between original and perturbed after center */}
-                        {shadeArea&&<path d={shadeArea} fill={isGood?"#38A169":"#E53E3E"} opacity={.1}/>}
+                       
 
                         {/* ── ORIGINAL LINE — gray dashed, full span ── */}
-                        <polyline points={origPts} fill="none"
-                          stroke="#94A3B8" strokeWidth={2} strokeDasharray="7,4" opacity={.9}/>
+                        <polyline
+                            points={origPts}
+                            fill="none"
+                            stroke="#7C8AA0"
+                            strokeWidth={2.5}
+                            strokeDasharray="7,4"
+                            opacity={1}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
 
                         {/* ── PROJECTED LINE — two segments ──
                             Before center: same as original (solid accent, slightly transparent)
                             After center:  diverged perturbed values (solid, full opacity) */}
                         {n > 1 && wiCenterIdx > 0 && (
-                          <polyline points={beforeCenterPts} fill="none"
-                            stroke={isGood?"#38A169":"#E53E3E"} strokeWidth={2.5} opacity={.35}/>
-                        )}
-                        <polyline points={afterCenterPts} fill="none"
-                          stroke={isGood?"#38A169":"#E53E3E"} strokeWidth={2.5} opacity={1}/>
-
+  <polyline
+    points={beforeCenterPts}
+    fill="none"
+    stroke={isGood ? "#38A169" : "#E53E3E"}
+    strokeWidth={2}
+    opacity={0.22}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  />
+)}
+<polyline
+  points={afterCenterPts}
+  fill="none"
+  stroke={isGood ? "#38A169" : "#E53E3E"}
+  strokeWidth={3}
+  opacity={1}
+  strokeLinecap="round"
+  strokeLinejoin="round"
+/>
                         {/* Endpoint dot on original */}
                         <circle cx={toX(n-1).toFixed(1)} cy={toY(origRisks[n-1]??0).toFixed(1)}
                           r={4} fill="#94A3B8" opacity={.8}/>
@@ -1360,21 +1409,59 @@ export default function App(){
                           r={5} fill={isGood?"#38A169":"#E53E3E"} stroke="white" strokeWidth={1.5}/>
 
                         {/* Delta annotation at end */}
-                        {Math.abs(delta)>0.001&&(()=>{
-                          const xEnd=toX(n-1);
-                          const yOrig=toY(origRisks[n-1]??0);
-                          const yPert=toY(pertRisks[n-1]??0);
-                          const midY=(yOrig+yPert)/2;
-                          return(<g>
-                            <line x1={xEnd+8} y1={yOrig} x2={xEnd+8} y2={yPert}
-                              stroke={isGood?"#38A169":"#E53E3E"} strokeWidth={1.5}
-                              markerStart="none" opacity={.7}/>
-                            <text x={xEnd+12} y={midY+3} fontSize={8} fill={isGood?"#38A169":"#E53E3E"}
-                              fontFamily={FONT} fontWeight={800}>
-                              {isGood?"▼":"▲"}{(Math.abs(delta)*100).toFixed(1)}%
-                            </text>
-                          </g>);
-                        })()}
+                        {Math.abs(delta) > 0.001 && (() => {
+  const xEnd = toX(n - 1);
+  const yOrig = toY(origRisks[n - 1] ?? 0);
+  const yPert = toY(pertRisks[n - 1] ?? 0);
+  const midY = (yOrig + yPert) / 2;
+  const lineColor = isGood ? "#38A169" : "#E53E3E";
+
+  return (
+    <g>
+      {/* thin connector showing exact difference at end */}
+      <line
+        x1={xEnd}
+        y1={yOrig}
+        x2={xEnd}
+        y2={yPert}
+        stroke={lineColor}
+        strokeWidth={2}
+        opacity={0.85}
+      />
+
+      {/* little caps so it reads more like a measured gap */}
+      <line
+        x1={xEnd - 6}
+        y1={yOrig}
+        x2={xEnd + 6}
+        y2={yOrig}
+        stroke={lineColor}
+        strokeWidth={1.5}
+        opacity={0.85}
+      />
+      <line
+        x1={xEnd - 6}
+        y1={yPert}
+        x2={xEnd + 6}
+        y2={yPert}
+        stroke={lineColor}
+        strokeWidth={1.5}
+        opacity={0.85}
+      />
+
+      <text
+        x={xEnd + 10}
+        y={midY + 3}
+        fontSize={9}
+        fill={lineColor}
+        fontFamily={FONT}
+        fontWeight={800}
+      >
+        {isGood ? "↓" : "↑"}{(Math.abs(delta) * 100).toFixed(1)}%
+      </text>
+    </g>
+  );
+})()}
 
                         {/* ── CENTER MARKER ── */}
                         <line x1={cx} y1={PT} x2={cx} y2={PT+ph}
@@ -1386,6 +1473,18 @@ export default function App(){
                           textAnchor={wiCenterIdx>n*0.7?"end":"start"}>
                           center w{wiData[wiCenterIdx]?.week??wiCenterIdx}
                         </text>
+                        {wiFeature && wiPerturbPct > 0 && wiCenterIdx < n - 1 && (() => {
+  const x = toX(wiCenterIdx);
+  const y = toY(origRisks[wiCenterIdx] ?? 0);
+  const lineColor = isGood ? "#38A169" : "#E53E3E";
+
+  return (
+    <g>
+      <circle cx={x} cy={y} r={8} fill="white" stroke={lineColor} strokeWidth={2} />
+      <circle cx={x} cy={y} r={3.5} fill={lineColor} />
+    </g>
+  );
+})()}
 
                         {/* 50% risk threshold label */}
                         <text x={PL-5} y={toY(0.5)+3.5} textAnchor="end" fontSize={7}
