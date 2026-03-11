@@ -1,4 +1,4 @@
-import { useState, useEffect, useState as useS, useRef as useR } from "react";
+import { useState, useEffect, useState as useS, useRef as useR, useRef, useCallback } from "react";
 import { RadialGlyph } from "./components/RadialGlyph";
 import type { ViewMode } from "./components/RadialGlyph";
 import { HCPBarChart } from "./components/HCPBarChart";
@@ -169,18 +169,18 @@ function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:14}}>
         <Stat label="Team Size"      value={String(data.teamSize)}  color="#6B9FFF"/>
         <Stat label="Care Diversity" value={data.entropy==null?"—":`${data.entropy.toFixed(2)}`} color="#A78BFA"/>
-        <Stat label="HCP Types"      value={String(data.hcpNames?.filter(n=>n&&n!=="nan").length??0)} color={color}/>
+        <Stat label="HCP Types"      value={String(new Set(data.hcpSnaps?.map(h=>h.specialty||h.providerType).filter(Boolean)).size??0)} color={color}/>
       </div>
       <div style={{marginBottom:14}}>
         <div style={{color:"#0F172A",fontSize:11,fontWeight:800,letterSpacing:1,marginBottom:6,fontFamily:FONT}}>
           ACTIVE SPECIALTIES
         </div>
         <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-          {(data.hcpNames?.filter(n=>n&&n!=="nan")??[]).map((n,i)=>(
+          {([...new Set((data.hcpSnaps??[]).map(h=>(h.specialty||h.providerType||"").trim()).filter(n=>n&&n!=="nan"&&n!=="null"))]).map((n,i)=>(
             <span key={i} style={{background:color+"10",border:`2px solid ${color}22`,
               borderRadius:4,padding:"3px 9px",color,fontSize:10,fontFamily:FONT,fontWeight:700}}>{n}</span>
           ))}
-          {(!data.hcpNames||data.hcpNames.filter(n=>n&&n!=="nan").length===0)&&
+          {(!data.hcpSnaps||data.hcpSnaps.length===0)&&
             <span style={{color:"#94A3B8",fontSize:10,fontFamily:FONT}}>No specialty data</span>}
         </div>
       </div>
@@ -377,7 +377,7 @@ function CompareGlyph({weeklySnap,surgeonSnap,totalHCP,selectedWeek,onSelectWeek
         </span>
       </div>
       <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",minHeight:0}}>
-        <svg ref={svgRef} viewBox={`0 0 ${SIZE} ${SIZE}`} preserveAspectRatio="xMidYMid meet"
+        <svg ref={svgRef} viewBox={`0 0 ${SIZE} 560`} preserveAspectRatio="xMidYMid meet"
           style={{width:"100%",height:"100%",maxWidth:"100%",maxHeight:"100%",display:"block"}}>
           <defs>
             {spikes.map((_,i)=>(
@@ -489,6 +489,175 @@ function WhatIfPanel({groups,removed,onToggle,baseRisk}:{
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// COMPARE VIEW — synchronized scrolling columns
+// Extracted as its own component so hooks (useRef/useCallback) work correctly
+// ─────────────────────────────────────────────────────────────────────────────
+function CompareView({
+  focusId, cmpId, focusPt, cmpPt,
+  avgRiskAll, totalPatientHCP, avgNotes, peakWeek,
+  cmpSum, cmpHCPSnap, cmpSnap, cmpSurgSnap,
+  tick, cmpTick, mode, onModeChange,
+  sharedWeek, onSharedWeek,
+  selWeekDataA, selWeekDataB,
+  onClearCompare,
+}: {
+  focusId: string; cmpId: string;
+  focusPt: PatientDot | undefined; cmpPt: PatientDot | undefined;
+  avgRiskAll: string; totalPatientHCP: number; avgNotes: string;
+  peakWeek: WeekData | null | undefined;
+  cmpSum: { avgRiskAll: string; avgNotes: string; peakWeek: WeekData | null | undefined };
+  cmpHCPSnap: number; cmpSnap: WeekData[]; cmpSurgSnap: number[];
+  tick: number; cmpTick: number; mode: ViewMode; onModeChange: (m: ViewMode) => void;
+  sharedWeek: number | null; onSharedWeek: (w: number | null) => void;
+  selWeekDataA: WeekData | null; selWeekDataB: WeekData | null;
+  onClearCompare: () => void;
+}) {
+  const colARef = useRef<HTMLDivElement>(null);
+  const colBRef = useRef<HTMLDivElement>(null);
+  const syncing  = useRef(false);
+
+  const onScrollA = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    if (syncing.current) return;
+    syncing.current = true;
+    const top = (e.currentTarget as HTMLDivElement).scrollTop;
+    if (colBRef.current) colBRef.current.scrollTop = top;
+    requestAnimationFrame(() => { syncing.current = false; });
+  }, []);
+
+  const onScrollB = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    if (syncing.current) return;
+    syncing.current = true;
+    const top = (e.currentTarget as HTMLDivElement).scrollTop;
+    if (colARef.current) colARef.current.scrollTop = top;
+    requestAnimationFrame(() => { syncing.current = false; });
+  }, []);
+
+  return (
+    <div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      <div style={{flex:1,minHeight:0,display:"flex",overflow:"hidden"}}>
+
+        {/* ── COLUMN A ── */}
+        <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",
+          overflow:"hidden",borderRight:"3px solid #E2E8F0"}}>
+          <ColHeader
+            label="A" color="#2B6CB0" id={focusId} pt={focusPt}
+            avgRisk={avgRiskAll} totalHCP={totalPatientHCP}
+            numWeeks={weeklyData.length}
+            sharedWeek={sharedWeek} onClearWeek={()=>onSharedWeek(null)}/>
+          <div ref={colARef} onScroll={onScrollA}
+            style={{flex:1,overflowY:"auto",padding:"14px",
+            display:"flex",flexDirection:"column",gap:14,background:"#F8FAFC"}}>
+
+            {/* Radial — 85vh so spiral fills most of the viewport */}
+            <div style={{height:"78vh",flexShrink:0}}>
+              <RadialGlyph key={focusId+tick+"cmp"}
+                selectedWeek={sharedWeek} onSelectWeek={onSharedWeek}
+                mode={mode} onModeChange={onModeChange} accentColor="#2B6CB0"/>
+            </div>
+
+            {/* Summary stats */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,flexShrink:0}}>
+              <Stat label="Avg Risk"   value={`${avgRiskAll}%`}        color="#D69E2E"/>
+              <Stat label="Total HCPs" value={String(totalPatientHCP)} color="#2B6CB0"/>
+              <Stat label="Notes/Wk"   value={avgNotes}                color="#38A169"/>
+              {peakWeek&&<Stat label="Peak Risk" value={`W${peakWeek.week} · ${(peakWeek.riskScore*100).toFixed(0)}%`} color="#E53E3E"/>}
+            </div>
+
+            {/* Week detail */}
+            {selWeekDataA
+              ? <WeekDetail data={selWeekDataA} color="#2B6CB0" mode={mode}/>
+              : <div style={{padding:"12px 14px",background:"#fff",border:"2px solid #E2E8F0",
+                  borderRadius:8,color:"#64748B",fontSize:11,fontFamily:FONT,lineHeight:1.6}}>
+                  <strong style={{color:"#2B6CB0"}}>Click any spike</strong> on the radial above — both patients will sync to that week simultaneously.
+                </div>
+            }
+
+            {/* HCP chart */}
+            <div style={{flexShrink:0}}>
+              <BlockLabel text={`HCP SPECIALTY BREAKDOWN${sharedWeek!=null?` — Week ${sharedWeek}`:""}`}/>
+              <div style={{border:"2px solid #0F172A",borderTop:"none",borderRadius:"0 0 8px 8px",overflow:"hidden"}}>
+                <HCPBarChart key={focusId+tick+(sharedWeek??"all")} selectedWeek={sharedWeek}/>
+              </div>
+            </div>
+
+            {/* Ego network */}
+            <div style={{flexShrink:0}}>
+              <BlockLabel text="EGO CARE NETWORK"
+                right={sharedWeek!=null
+                  ?<span style={{color:"#60A5FA",fontSize:10,fontFamily:FONT,fontWeight:700}}>WEEK {sharedWeek}</span>
+                  :<span style={{color:"#94A3B8",fontSize:10,fontFamily:FONT}}>click a spike to jump to week</span>}/>
+              <div style={{border:"2px solid #0F172A",borderTop:"none",borderRadius:"0 0 8px 8px"}}>
+                <EgoNetwork key={`${focusId}-${sharedWeek??""}`} patientId={focusId} accentColor="#2B6CB0" initialWeek={sharedWeek??undefined}/>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        {/* ── COLUMN B ── */}
+        <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+          <ColHeader
+            label="B" color="#6B46C1" id={cmpId} pt={cmpPt}
+            avgRisk={cmpSum.avgRiskAll} totalHCP={cmpHCPSnap}
+            numWeeks={cmpSnap.length}
+            sharedWeek={sharedWeek} onClearWeek={()=>onSharedWeek(null)}
+            onRemove={onClearCompare}/>
+          <div ref={colBRef} onScroll={onScrollB}
+            style={{flex:1,overflowY:"auto",padding:"14px",
+            display:"flex",flexDirection:"column",gap:14,background:"#F8FAFC"}}>
+
+            {/* Radial — 85vh so spiral fills most of the viewport */}
+            <div style={{height:"78vh",flexShrink:0}}>
+              <CompareGlyph key={cmpId+cmpTick}
+                weeklySnap={cmpSnap} surgeonSnap={cmpSurgSnap} totalHCP={cmpHCPSnap}
+                selectedWeek={sharedWeek} onSelectWeek={onSharedWeek} mode={mode}/>
+            </div>
+
+            {/* Summary stats */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,flexShrink:0}}>
+              <Stat label="Avg Risk"   value={`${cmpSum.avgRiskAll}%`} color="#D69E2E"/>
+              <Stat label="Total HCPs" value={String(cmpHCPSnap)}      color="#6B46C1"/>
+              <Stat label="Notes/Wk"   value={cmpSum.avgNotes}         color="#38A169"/>
+              {cmpSum.peakWeek&&<Stat label="Peak Risk" value={`W${cmpSum.peakWeek.week} · ${(cmpSum.peakWeek.riskScore*100).toFixed(0)}%`} color="#E53E3E"/>}
+            </div>
+
+            {/* Week detail */}
+            {selWeekDataB
+              ? <WeekDetail data={selWeekDataB} color="#6B46C1" mode={mode}/>
+              : <div style={{padding:"12px 14px",background:"#fff",border:"2px solid #E2E8F0",
+                  borderRadius:8,color:"#64748B",fontSize:11,fontFamily:FONT,lineHeight:1.6}}>
+                  Waiting for week selection — click any spike in either column.
+                </div>
+            }
+
+            {/* HCP chart */}
+            <div style={{flexShrink:0}}>
+              <BlockLabel text={`HCP SPECIALTY BREAKDOWN${sharedWeek!=null?` — Week ${sharedWeek}`:""}`}/>
+              <div style={{border:"2px solid #0F172A",borderTop:"none",borderRadius:"0 0 8px 8px",overflow:"hidden"}}>
+                <HCPBarChart key={cmpId+cmpTick+(sharedWeek??"all")} selectedWeek={sharedWeek} data={cmpSnap}/>
+              </div>
+            </div>
+
+            {/* Ego network */}
+            <div style={{flexShrink:0}}>
+              <BlockLabel text="EGO CARE NETWORK"
+                right={sharedWeek!=null
+                  ?<span style={{color:"#C084FC",fontSize:10,fontFamily:FONT,fontWeight:700}}>WEEK {sharedWeek}</span>
+                  :<span style={{color:"#94A3B8",fontSize:10,fontFamily:FONT}}>click a spike to jump to week</span>}/>
+              <div style={{border:"2px solid #0F172A",borderTop:"none",borderRadius:"0 0 8px 8px"}}>
+                <EgoNetwork key={`${cmpId}-${sharedWeek??""}`} patientId={cmpId} accentColor="#6B46C1" initialWeek={sharedWeek??undefined}/>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // APP
 // ─────────────────────────────────────────────────────────────────────────────
 export default function App(){
@@ -528,7 +697,7 @@ export default function App(){
 
   useEffect(()=>{
     initRealData("/temporal_networks.json","/full_va_export_with_linear.json","/ego_network.json").then(()=>{
-      setFocusId(selectedPatientId); setReady(true);
+      setReady(true);
       Promise.all([nanSafe("/temporal_networks.json"),nanSafe("/full_va_export_with_linear.json")])
         .then(([t,e])=>{
           _temporal=t as Record<string,unknown>;
@@ -576,7 +745,7 @@ export default function App(){
   const cmpSum=getPatientSummary(cmpSnap);
   const focusPt=getPatientById(focusId);
   const cmpPt=getPatientById(cmpId);
-  const hcpGroups=[...new Set(weeklyData.flatMap(w=>w.hcpNames))].filter(Boolean).slice(0,24);
+  const hcpGroups=[...new Set(weeklyData.flatMap(w=>(w.hcpSnaps??[]).map(h=>h.specialty||h.providerType)))].filter(Boolean).slice(0,24);
   const selWeekDataA=sharedWeek!=null?weeklyData.find(w=>w.week===sharedWeek)??null:null;
   const selWeekDataB=sharedWeek!=null?cmpSnap.find(w=>w.week===sharedWeek)??null:null;
   const singleWeekData = selWeek!=null ? (weeklyData.find(w=>w.week===selWeek)??null) : null;
@@ -802,138 +971,15 @@ export default function App(){
       ) : view==="compare" ? (
 
         /* ── COMPARE VIEW ─────────────────────────────────────────────────── */
-        <div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-
-          {/* Two columns — no scatter strip */}
-          <div style={{flex:1,minHeight:0,display:"flex",overflow:"hidden"}}>
-
-            {/* ── COLUMN A ── */}
-            <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",
-              overflow:"hidden",borderRight:"3px solid #E2E8F0"}}>
-              <ColHeader
-                label="A" color="#2B6CB0" id={focusId} pt={focusPt}
-                avgRisk={avgRiskAll} totalHCP={totalPatientHCP}
-                numWeeks={weeklyData.length}
-                sharedWeek={sharedWeek} onClearWeek={()=>setSharedWeek(null)}/>
-              <div style={{flex:1,overflowY:"auto",padding:"14px",
-                display:"flex",flexDirection:"column",gap:14,background:"#F8FAFC"}}>
-
-                {/* Radial */}
-                <div style={{height:560,flexShrink:0}}>
-                  <RadialGlyph key={focusId+tick+"cmp"}
-                    selectedWeek={sharedWeek}
-                    onSelectWeek={setSharedWeek}
-                    mode={mode} onModeChange={setMode}
-                    accentColor="#2B6CB0"/>
-                </div>
-
-                {/* Summary stats */}
-                <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,flexShrink:0}}>
-                  <Stat label="Avg Risk"   value={`${avgRiskAll}%`}         color="#D69E2E"/>
-                  <Stat label="Total HCPs" value={String(totalPatientHCP)}  color="#2B6CB0"/>
-                  <Stat label="Notes/Wk"   value={avgNotes}                  color="#38A169"/>
-                  {peakWeek&&<Stat label="Peak Risk" value={`W${peakWeek.week} · ${(peakWeek.riskScore*100).toFixed(0)}%`} color="#E53E3E"/>}
-                </div>
-
-                {/* Week detail — appears when week is selected */}
-                {selWeekDataA&&(
-                  <WeekDetail data={selWeekDataA} color="#2B6CB0" mode={mode}/>
-                )}
-                {!selWeekDataA&&(
-                  <div style={{padding:"12px 14px",background:"#fff",border:"2px solid #E2E8F0",
-                    borderRadius:8,color:"#64748B",fontSize:11,fontFamily:FONT,lineHeight:1.6}}>
-                    <strong style={{color:"#2B6CB0"}}>Click any spike</strong> on the radial above — both patients will sync to that week simultaneously.
-                  </div>
-                )}
-
-                {/* HCP chart */}
-                <div style={{flexShrink:0}}>
-                  <BlockLabel text={`HCP SPECIALTY BREAKDOWN${sharedWeek!=null?` — Week ${sharedWeek}`:""}`}/>
-                  <div style={{border:"2px solid #0F172A",borderTop:"none",borderRadius:"0 0 8px 8px",overflow:"hidden"}}>
-                    <HCPBarChart key={focusId+tick+(sharedWeek??"all")} selectedWeek={sharedWeek}/>
-                  </div>
-                </div>
-
-                {/* Ego network — syncs to sharedWeek, grows with content */}
-                <div style={{flexShrink:0}}>
-                  <BlockLabel
-                    text="EGO CARE NETWORK"
-                    right={sharedWeek!=null
-                      ?<span style={{color:"#60A5FA",fontSize:10,fontFamily:FONT,fontWeight:700}}>WEEK {sharedWeek}</span>
-                      :<span style={{color:"#94A3B8",fontSize:10,fontFamily:FONT}}>click a spike to jump to week</span>}/>
-                  <div style={{border:"2px solid #0F172A",borderTop:"none",
-                    borderRadius:"0 0 8px 8px"}}>
-                    <EgoNetwork key={`${focusId}-${sharedWeek??""}`} patientId={focusId} accentColor="#2B6CB0" initialWeek={sharedWeek??undefined}/>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-
-            {/* ── COLUMN B ── */}
-            <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-              <ColHeader
-                label="B" color="#6B46C1" id={cmpId} pt={cmpPt}
-                avgRisk={cmpSum.avgRiskAll} totalHCP={cmpHCPSnap}
-                numWeeks={cmpSnap.length}
-                sharedWeek={sharedWeek} onClearWeek={()=>setSharedWeek(null)}
-                onRemove={handleClearCompare}/>
-              <div style={{flex:1,overflowY:"auto",padding:"14px",
-                display:"flex",flexDirection:"column",gap:14,background:"#F8FAFC"}}>
-
-                {/* Radial */}
-                <div style={{height:560,flexShrink:0}}>
-                  <CompareGlyph key={cmpId+cmpTick}
-                    weeklySnap={cmpSnap} surgeonSnap={cmpSurgSnap} totalHCP={cmpHCPSnap}
-                    selectedWeek={sharedWeek} onSelectWeek={setSharedWeek}
-                    mode={mode}/>
-                </div>
-
-                {/* Summary stats */}
-                <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,flexShrink:0}}>
-                  <Stat label="Avg Risk"   value={`${cmpSum.avgRiskAll}%`}  color="#D69E2E"/>
-                  <Stat label="Total HCPs" value={String(cmpHCPSnap)}       color="#6B46C1"/>
-                  <Stat label="Notes/Wk"   value={cmpSum.avgNotes}          color="#38A169"/>
-                  {cmpSum.peakWeek&&<Stat label="Peak Risk" value={`W${cmpSum.peakWeek.week} · ${(cmpSum.peakWeek.riskScore*100).toFixed(0)}%`} color="#E53E3E"/>}
-                </div>
-
-                {/* Week detail */}
-                {selWeekDataB&&(
-                  <WeekDetail data={selWeekDataB} color="#6B46C1" mode={mode}/>
-                )}
-                {!selWeekDataB&&(
-                  <div style={{padding:"12px 14px",background:"#fff",border:"2px solid #E2E8F0",
-                    borderRadius:8,color:"#64748B",fontSize:11,fontFamily:FONT,lineHeight:1.6}}>
-                    Waiting for week selection — click any spike in either column.
-                  </div>
-                )}
-
-                {/* HCP chart — patient B uses cmpSnap data */}
-                <div style={{flexShrink:0}}>
-                  <BlockLabel text={`HCP SPECIALTY BREAKDOWN${sharedWeek!=null?` — Week ${sharedWeek}`:""}`}/>
-                  <div style={{border:"2px solid #0F172A",borderTop:"none",borderRadius:"0 0 8px 8px",overflow:"hidden"}}>
-                    <HCPBarChart key={cmpId+cmpTick+(sharedWeek??"all")} selectedWeek={sharedWeek} data={cmpSnap}/>
-                  </div>
-                </div>
-
-                {/* Ego network — same sharedWeek key = synced with column A */}
-                <div style={{flexShrink:0}}>
-                  <BlockLabel
-                    text="EGO CARE NETWORK"
-                    right={sharedWeek!=null
-                      ?<span style={{color:"#C084FC",fontSize:10,fontFamily:FONT,fontWeight:700}}>WEEK {sharedWeek}</span>
-                      :<span style={{color:"#94A3B8",fontSize:10,fontFamily:FONT}}>click a spike to jump to week</span>}/>
-                  <div style={{border:"2px solid #0F172A",borderTop:"none",
-                    borderRadius:"0 0 8px 8px"}}>
-                    <EgoNetwork key={`${cmpId}-${sharedWeek??""}`} patientId={cmpId} accentColor="#6B46C1" initialWeek={sharedWeek??undefined}/>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-          </div>
-
-        </div>
+        <CompareView
+          focusId={focusId} cmpId={cmpId} focusPt={focusPt} cmpPt={cmpPt}
+          avgRiskAll={avgRiskAll} totalPatientHCP={totalPatientHCP} avgNotes={avgNotes} peakWeek={peakWeek}
+          cmpSum={cmpSum} cmpHCPSnap={cmpHCPSnap} cmpSnap={cmpSnap} cmpSurgSnap={cmpSurgSnap}
+          tick={tick} cmpTick={cmpTick} mode={mode} onModeChange={setMode}
+          sharedWeek={sharedWeek} onSharedWeek={setSharedWeek}
+          selWeekDataA={selWeekDataA} selWeekDataB={selWeekDataB}
+          onClearCompare={handleClearCompare}
+        />
 
       ) : view==="whatif" ? (
 

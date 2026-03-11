@@ -288,7 +288,7 @@ export function RadialGlyph({
 
       {/* ── SVG ── */}
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", minHeight: 0 }}>
-        <svg ref={svgRef} viewBox={`0 0 ${SIZE} ${SIZE}`}
+        <svg ref={svgRef} viewBox={`0 0 ${SIZE} 560`}
           preserveAspectRatio="xMidYMid meet"
           style={{ width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%", display: "block" }}>
           <defs>
@@ -593,7 +593,7 @@ export function WeekPanel({ data, pinned, mode = "delta" }: { data: WeekData; pi
         <div>
           <div style={{ color: T.textSecondary, fontSize: 12, fontWeight: 700, marginBottom: 6, letterSpacing: 1 }}>ACTIVE SPECIALTIES</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            {(data.hcpNames?.filter(n => n && n !== "nan" && n !== "null") ?? []).slice(0, 10).map((name, ni) => (
+            {([...new Set((data.hcpSnaps ?? []).map(h => (h.specialty || h.providerType || "").trim()).filter(n => n && n !== "nan" && n !== "null"))]).slice(0, 10).map((name, ni) => (
               <span key={ni} style={{ color: T.textSecondary, fontSize: 12, lineHeight: 1.8 }}>· {name}</span>
             ))}
           </div>
