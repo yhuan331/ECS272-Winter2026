@@ -27,9 +27,10 @@ export function ScatterPlot({
   filters,
   onFilterChange,
 }: Props) {
-  const [hoverId,       setHoverId]       = useState<string | null>(null);
-  const [vp,            setVp]            = useState<Viewport>(DEFAULT_VP);
-  const [dragging,      setDragging]      = useState(false);
+  const [hoverId,        setHoverId]        = useState<string | null>(null);
+  const [survivorFilter, setSurvivorFilter] = useState<"all" | "survived" | "deceased">("all");
+  const [vp,             setVp]             = useState<Viewport>(DEFAULT_VP);
+  const [dragging,       setDragging]       = useState(false);
   const dragStart = useRef<{ mx: number; my: number; vp: Viewport } | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -51,7 +52,12 @@ export function ScatterPlot({
     return n;
   })());
 
-  const visible   = patients.filter(p => filters.has(p.cancer));
+  const visible = patients.filter(p =>
+    filters.has(p.cancer) &&
+    (survivorFilter === "all" ||
+     (survivorFilter === "survived"  &&  p.survived) ||
+     (survivorFilter === "deceased"  && !p.survived))
+  );
   const vpW       = vp.x1 - vp.x0;
   const vpH       = vp.y1 - vp.y0;
   const zoomLevel = (1 / Math.max(vpW, vpH)).toFixed(1);
@@ -169,8 +175,8 @@ export function ScatterPlot({
         )}
       </div>
 
-      {/* Toggles + hint */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 8, alignItems: "center" }}>
+      {/* Cancer type toggles + survival filter + hint */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 8, alignItems: "center", flexWrap: "wrap" }}>
         {(["breast", "colon", "lung"] as const).map(c => {
           const active = filters.has(c);
           const color  = CANCER_COLORS[c];
@@ -186,6 +192,28 @@ export function ScatterPlot({
             }}>{c}</button>
           );
         })}
+
+        {/* Divider */}
+        <div style={{ width: 1, height: 14, background: T.border, margin: "0 2px" }} />
+
+        {/* Survival filter buttons */}
+        {(["all", "survived", "deceased"] as const).map(opt => {
+          const active = survivorFilter === opt;
+          const color  = opt === "survived" ? "#38A169" : opt === "deceased" ? "#E53E3E" : T.textMuted;
+          const label  = opt === "all" ? "ALL" : opt === "survived" ? "● ALIVE" : "○ DECEASED";
+          return (
+            <button key={opt} onClick={() => setSurvivorFilter(opt)} style={{
+              background: active ? color + "18" : "transparent",
+              border: `1px solid ${active ? color : T.border}`,
+              borderRadius: 4, padding: "3px 10px",
+              color: active ? color : T.textMuted,
+              fontSize: 9, fontFamily: FONT, cursor: "pointer",
+              letterSpacing: 1, fontWeight: 700,
+              transition: "all 0.15s",
+            }}>{label}</button>
+          );
+        })}
+
         <span style={{ color: T.textFaint, fontSize: 8, marginLeft: 4 }}>
           scroll to zoom · drag to pan · <strong style={{color:"#2B6CB0"}}>click</strong>=A · <strong style={{color:"#6B46C1"}}>right-click</strong>=B
         </span>
@@ -205,7 +233,6 @@ export function ScatterPlot({
       >
         <defs>
           <clipPath id="plotClip">
-            {/* Expand by 20px on all sides so dots at the boundary are never clipped */}
             <rect x={pad.left - 20} y={pad.top - 20} width={plotW + 40} height={plotH + 40} />
           </clipPath>
         </defs>
@@ -226,12 +253,6 @@ export function ScatterPlot({
         <line x1={pad.left} y1={medY} x2={pad.left + plotW} y2={medY}
           stroke={T.borderMid} strokeWidth={1.2} strokeDasharray="5,4" opacity={0.6} />
 
-        {/* Quadrant labels
-        <text x={pad.left + 4}         y={pad.top + 12}        fill={T.textFaint} fontSize={7} fontFamily={FONT}>Small network · High risk</text>
-        <text x={pad.left + plotW - 4} y={pad.top + 12}        fill={T.textFaint} fontSize={7} fontFamily={FONT} textAnchor="end">Large network · High risk</text>
-        <text x={pad.left + 4}         y={pad.top + plotH - 6} fill={T.textFaint} fontSize={7} fontFamily={FONT}>Small network · Low risk</text>
-        <text x={pad.left + plotW - 4} y={pad.top + plotH - 6} fill={T.textFaint} fontSize={7} fontFamily={FONT} textAnchor="end">Large network · Low risk</text> */}
-
         {/* Y ticks */}
         {yTicks.map((t, i) => (
           <text key={i} x={pad.left - 6} y={t.svgY} textAnchor="end" dominantBaseline="middle"
@@ -244,7 +265,7 @@ export function ScatterPlot({
             fill={T.textFaint} fontSize={7} fontFamily={FONT}>{t.label}</text>
         ))}
 
-        {/* Dots — clipped to plot area via clipPath, NO white overlays */}
+        {/* Dots */}
         <g clipPath="url(#plotClip)">
           {sortedVisible.map(p => {
             const { cx, cy } = toSVG(p);
@@ -343,7 +364,7 @@ export function ScatterPlot({
           Avg Predicted Death Risk ↑
         </text>
 
-        {/* Mini-map — only shown when zoomed */}
+        {/* Mini-map */}
         {isZoomed && (
           <g style={{ pointerEvents: "none" }}>
             <rect x={MM.x - 1} y={MM.y - 1} width={MM.w + 2} height={MM.h + 2}
@@ -368,22 +389,23 @@ export function ScatterPlot({
       </svg>
 
       {/* Legend */}
-      <div style={{ display: "flex", gap: 12, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
+      <div style={{ display: "flex", gap: 18, marginTop: 10, flexWrap: "wrap", alignItems: "center", padding: "8px 4px 2px" }}>
         {(["breast", "colon", "lung"] as const).map(c => (
-          <div key={c} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <svg width={8} height={8}><circle cx={4} cy={4} r={3.5} fill={CANCER_COLORS[c]} /></svg>
-            <span style={{ color: T.textMuted, fontSize: 9, fontFamily: FONT, textTransform: "uppercase" }}>{c}</span>
+          <div key={c} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <svg width={13} height={13}><circle cx={6.5} cy={6.5} r={6} fill={CANCER_COLORS[c]} /></svg>
+            <span style={{ color: T.textMuted, fontSize: 12, fontFamily: FONT, textTransform: "uppercase", fontWeight: 700, letterSpacing: 0.5 }}>{c}</span>
           </div>
         ))}
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <svg width={10} height={10}><circle cx={5} cy={5} r={4} fill="none" stroke={T.textMuted} strokeWidth={2} /></svg>
-          <span style={{ color: T.textMuted, fontSize: 9 }}>Deceased</span>
+        <div style={{ width: 1, height: 18, background: T.border }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <svg width={14} height={14}><circle cx={7} cy={7} r={5.5} fill="none" stroke={T.textMuted} strokeWidth={2} /></svg>
+          <span style={{ color: T.textMuted, fontSize: 12, fontFamily: FONT }}>Deceased</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <svg width={10} height={10}><circle cx={5} cy={5} r={4} fill={T.textFaint} opacity={0.4} /></svg>
-          <span style={{ color: T.textMuted, fontSize: 9 }}>Survived</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <svg width={14} height={14}><circle cx={7} cy={7} r={5.5} fill={T.textFaint} opacity={0.5} /></svg>
+          <span style={{ color: T.textMuted, fontSize: 12, fontFamily: FONT }}>Survived</span>
         </div>
-        <span style={{ marginLeft: "auto", color: T.textFaint, fontSize: 9, fontFamily: FONT }}>{patients.length} pts</span>
+        <span style={{ marginLeft: "auto", color: T.textFaint, fontSize: 12, fontFamily: FONT, fontWeight: 700 }}>{visible.length} / {patients.length} pts</span>
       </div>
     </div>
   );

@@ -242,8 +242,8 @@ export function RadialGlyph({
           const isActive = mode === m;
           return (
             <button key={m} onClick={() => handleSetMode(m)} style={{
-              flex: 1, padding: "9px 0 7px",
-              fontFamily: FONT, fontSize: 10, fontWeight: 700, letterSpacing: 1,
+              flex: 1, padding: "10px 0 8px",
+              fontFamily: FONT, fontSize: 12, fontWeight: 700, letterSpacing: 1,
               cursor: "pointer", border: "none",
               borderBottom: isActive ? `2px solid ${cfg.accent}` : "2px solid transparent",
               borderRight: mi === 0 ? `1px solid ${T.border}` : "none",
@@ -259,21 +259,21 @@ export function RadialGlyph({
 
       {/* ── Legend + arc indicator strip ── */}
       <div style={{
-        display: "flex", alignItems: "center", gap: 10,
-        padding: "5px 14px", borderBottom: `1px solid ${T.border}`,
+        display: "flex", alignItems: "center", gap: 12,
+        padding: "7px 14px", borderBottom: `1px solid ${T.border}`,
         flexShrink: 0, flexWrap: "wrap",
       }}>
-        <span style={{ color: T.textMuted, fontSize: 9, fontFamily: FONT, marginRight: 4 }}>
+        <span style={{ color: T.textMuted, fontSize: 12, fontFamily: FONT, marginRight: 4 }}>
           {active.label}
         </span>
         {active.legend.map(l => <LegendDot key={l.label} color={l.color} label={l.label} />)}
         {/* Arc fill indicator */}
         <span style={{
-          marginLeft: "auto", display: "flex", alignItems: "center", gap: 5,
-          color: T.textFaint, fontSize: 9, fontFamily: FONT,
+          marginLeft: "auto", display: "flex", alignItems: "center", gap: 6,
+          color: T.textFaint, fontSize: 11, fontFamily: FONT,
         }}>
           <span style={{
-            display: "inline-block", width: 32, height: 5, borderRadius: 3,
+            display: "inline-block", width: 36, height: 6, borderRadius: 3,
             background: T.bgInset, overflow: "hidden", position: "relative",
           }}>
             <span style={{
@@ -487,9 +487,9 @@ export function RadialGlyph({
 // ── Small legend dot ─────────────────────────────────────────────────────────
 function LegendDot({ color, label }: { color: string; label: string }) {
   return (
-    <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-      <span style={{ width: 7, height: 7, borderRadius: "50%", background: color, flexShrink: 0 }} />
-      <span style={{ color: T.textMuted, fontSize: 9, fontFamily: T.font }}>{label}</span>
+    <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+      <span style={{ width: 10, height: 10, borderRadius: "50%", background: color, flexShrink: 0 }} />
+      <span style={{ color: T.textMuted, fontSize: 12, fontFamily: T.font }}>{label}</span>
     </span>
   );
 }
@@ -499,46 +499,51 @@ function LegendDot({ color, label }: { color: string; label: string }) {
 export function Stat({ label, value, color, small }: { label: string; value: string; color: string; small?: boolean }) {
   return (
     <div>
-      <div style={{ color: T.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 3 }}>{label}</div>
-      <div style={{ color, fontSize: small ? 13 : 18, fontWeight: 700, fontFamily: T.font }}>{value}</div>
+      <div style={{ color: T.textMuted, fontSize: 13, letterSpacing: 1, marginBottom: 4 }}>{label}</div>
+      <div style={{ color, fontSize: small ? 16 : 22, fontWeight: 700, fontFamily: T.font }}>{value}</div>
     </div>
   );
 }
 
-export function EmptyPanel({ avgRiskAll, peakWeek, totalPatientHCP, avgNotes, mode, peakDeltaWeek }: {
+export function EmptyPanel({ avgRiskAll, peakWeek, totalPatientHCP, mode, peakDeltaWeek }: {
   avgRiskAll: string;
   peakWeek: WeekData | null;
   totalPatientHCP: number;
-  avgNotes: string;
   mode: ViewMode;
   peakDeltaWeek?: WeekData | null;
 }) {
   const isProb = mode === "prob";
+  const teamVolatility = weeklyData.length > 1
+    ? (weeklyData.slice(1).reduce((s, d, i) => {
+        const prev = weeklyData[i]?.teamSize ?? 0;
+        return s + Math.abs((d?.teamSize ?? 0) - prev);
+      }, 0) / (weeklyData.length - 1)).toFixed(1)
+    : "0.0";
   return (
     <div style={{ fontFamily: T.font }}>
-      <div style={{ color: T.textFaint, fontSize: 11, letterSpacing: 1.5, marginBottom: 8 }}>
+      <div style={{ color: T.textFaint, fontSize: 13, letterSpacing: 1.5, marginBottom: 10 }}>
         CLICK A SPIKE TO INSPECT
       </div>
-      <div style={{ color: T.textMuted, fontSize: 9, marginBottom: 8 }}>
+      <div style={{ color: T.textMuted, fontSize: 12, marginBottom: 12 }}>
         {isProb
           ? "GNN PROB: green=low death risk · red=high death risk"
           : "Δ PROB: red=rising · green=falling · height = |Δ| · width = team size"
         }
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 16px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 20px" }}>
         {isProb ? (
           <>
-            <Stat label="AVG RISK"   value={`${avgRiskAll}%`}        color="#D69E2E" />
-            <Stat label="TOTAL HCP"  value={String(totalPatientHCP)} color="#2B6CB0" />
-            <Stat label="NOTES / WK" value={avgNotes}                color="#38A169" />
+            <Stat label="AVG RISK"        value={`${avgRiskAll}%`}        color="#D69E2E" />
+            <Stat label="TOTAL HCP"       value={String(totalPatientHCP)} color="#2B6CB0" />
+            <Stat label="TEAM VOLATILITY" value={`${teamVolatility}/wk`}  color="#38A169" />
             {peakWeek && (
               <Stat label="PEAK WEEK" value={`W${peakWeek.week} · ${(peakWeek.riskScore * 100).toFixed(0)}%`} color="#E53E3E" />
             )}
           </>
         ) : (
           <>
-            <Stat label="TOTAL HCP"  value={String(totalPatientHCP)} color="#2B6CB0" />
-            <Stat label="NOTES / WK" value={avgNotes}                color="#38A169" />
+            <Stat label="TOTAL HCP"       value={String(totalPatientHCP)} color="#2B6CB0" />
+            <Stat label="TEAM VOLATILITY" value={`${teamVolatility}/wk`}  color="#38A169" />
             {peakDeltaWeek && (
               <>
                 <Stat label="LARGEST Δ WEEK" value={`W${peakDeltaWeek.week}`} color="#E53E3E" />
@@ -558,16 +563,16 @@ export function WeekPanel({ data, pinned, mode = "delta" }: { data: WeekData; pi
   const isSurgeonWeek = surgeonEvents.includes(data.week);
   return (
     <div style={{ fontFamily: T.font }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-        <span style={{ color: T.textPrimary, fontSize: 20, fontWeight: 700 }}>WEEK {data.week}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+        <span style={{ color: T.textPrimary, fontSize: 24, fontWeight: 700 }}>WEEK {data.week}</span>
         {isSurgeonWeek && (
-          <span style={{ color: "#D69E2E", fontSize: 9, background: "#FFFBEB", padding: "2px 8px", borderRadius: 4, border: "1px solid #D69E2E44" }}>
+          <span style={{ color: "#D69E2E", fontSize: 11, background: "#FFFBEB", padding: "3px 10px", borderRadius: 4, border: "1px solid #D69E2E44" }}>
             ✦ SURGEON EVENT
           </span>
         )}
-        <span style={{ color: T.textFaint, fontSize: 9, marginLeft: "auto" }}>
+        <span style={{ color: T.textFaint, fontSize: 11, marginLeft: "auto" }}>
           {pinned
-            ? <span style={{ color: "#2B6CB0", background: "#EEF2FF", padding: "2px 8px", borderRadius: 4, border: "1px solid #2B6CB044", fontSize: 9 }}>
+            ? <span style={{ color: "#2B6CB0", background: "#EEF2FF", padding: "3px 10px", borderRadius: 4, border: "1px solid #2B6CB044", fontSize: 11 }}>
                 📌 SELECTED — click same spike to deselect
               </span>
             : "click a spike to inspect"
@@ -575,7 +580,7 @@ export function WeekPanel({ data, pinned, mode = "delta" }: { data: WeekData; pi
         </span>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px 16px", marginBottom: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px 20px", marginBottom: 18 }}>
         {mode === "prob" ? (
           <Stat label="GNN DEATH RISK (CUMULATIVE)" value={`${(data.riskScore * 100).toFixed(1)}%`} color={data.spikeColor} />
         ) : (
@@ -589,23 +594,23 @@ export function WeekPanel({ data, pinned, mode = "delta" }: { data: WeekData; pi
           color="#A78BFA" />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
         <div>
-          <div style={{ color: T.textSecondary, fontSize: 12, fontWeight: 700, marginBottom: 6, letterSpacing: 1 }}>ACTIVE SPECIALTIES</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <div style={{ color: T.textSecondary, fontSize: 13, fontWeight: 700, marginBottom: 8, letterSpacing: 1 }}>ACTIVE SPECIALTIES</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             {([...new Set((data.hcpSnaps ?? []).map(h => (h.specialty || h.providerType || "").trim()).filter(n => n && n !== "nan" && n !== "null"))]).slice(0, 10).map((name, ni) => (
-              <span key={ni} style={{ color: T.textSecondary, fontSize: 12, lineHeight: 1.8 }}>· {name}</span>
+              <span key={ni} style={{ color: T.textSecondary, fontSize: 13, lineHeight: 1.8 }}>· {name}</span>
             ))}
           </div>
         </div>
         <div>
-          <div style={{ color: T.textSecondary, fontSize: 12, fontWeight: 700, marginBottom: 4, letterSpacing: 1 }}>
+          <div style={{ color: T.textSecondary, fontSize: 13, fontWeight: 700, marginBottom: 6, letterSpacing: 1 }}>
             TOP ATTRIBUTES ({data.topSHAP?.length ?? 0})
           </div>
-          <div style={{ color: T.textMuted, fontSize: 9, marginBottom: 4 }}>
+          <div style={{ color: T.textMuted, fontSize: 11, marginBottom: 6 }}>
             red = raises death risk · green = lowers death risk
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {(data.topSHAP ?? []).slice(0, 10).map((s, si) => {
               const isPos  = s.contribution >= 0;
               const parts  = s.feature.split("::");
@@ -614,10 +619,10 @@ export function WeekPanel({ data, pinned, mode = "delta" }: { data: WeekData; pi
               const label  = `${field}: ${value}`;
               const barW   = Math.min(60, Math.abs(s.contribution) * 30);
               return (
-                <div key={si} style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 4 }}>
-                  <span style={{ color: T.textSecondary, fontSize: 11, flex: 1, wordBreak: "break-word", lineHeight: 1.4 }}>{label}</span>
-                  <div style={{ width: barW, height: 6, borderRadius: 3, background: isPos ? "#E53E3E" : "#38A169", opacity: 0.8, flexShrink: 0 }} />
-                  <span style={{ color: isPos ? "#E53E3E" : "#38A169", fontSize: 12, fontWeight: 700, minWidth: 52, textAlign: "right" }}>
+                <div key={si} style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 5 }}>
+                  <span style={{ color: T.textSecondary, fontSize: 12, flex: 1, wordBreak: "break-word", lineHeight: 1.5 }}>{label}</span>
+                  <div style={{ width: barW, height: 7, borderRadius: 3, background: isPos ? "#E53E3E" : "#38A169", opacity: 0.8, flexShrink: 0 }} />
+                  <span style={{ color: isPos ? "#E53E3E" : "#38A169", fontSize: 13, fontWeight: 700, minWidth: 56, textAlign: "right" }}>
                     {isPos ? "+" : ""}{s.contribution.toFixed(3)}
                   </span>
                 </div>
@@ -636,7 +641,6 @@ export interface WeekInfoPanelProps {
   avgRiskAll: string;
   peakWeek: WeekData | null;
   totalHCP: number;
-  avgNotes: string;
   mode: ViewMode;
   peakDeltaWeek?: WeekData | null;
   accentBorder?: string;
@@ -645,7 +649,7 @@ export interface WeekInfoPanelProps {
 
 export function WeekInfoPanel({
   activeData, pinnedWeek, avgRiskAll, peakWeek,
-  totalHCP, avgNotes, mode, peakDeltaWeek, accentBorder, label,
+  totalHCP, mode, peakDeltaWeek, accentBorder, label,
 }: WeekInfoPanelProps) {
   return (
     <div style={{
@@ -656,8 +660,8 @@ export function WeekInfoPanel({
     }}>
       {label && (
         <div style={{
-          fontSize: 9, fontWeight: 700, letterSpacing: 1.5,
-          color: accentBorder ?? T.textMuted, marginBottom: 10,
+          fontSize: 11, fontWeight: 700, letterSpacing: 1.5,
+          color: accentBorder ?? T.textMuted, marginBottom: 12,
           textTransform: "uppercase",
         }}>{label}</div>
       )}
@@ -665,7 +669,7 @@ export function WeekInfoPanel({
         ? <WeekPanel data={activeData} pinned={!!pinnedWeek} mode={mode} />
         : <EmptyPanel
             avgRiskAll={avgRiskAll} peakWeek={peakWeek} totalPatientHCP={totalHCP}
-            avgNotes={avgNotes} mode={mode} peakDeltaWeek={peakDeltaWeek}
+            mode={mode} peakDeltaWeek={peakDeltaWeek}
           />
       }
     </div>
