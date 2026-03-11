@@ -278,7 +278,8 @@ function buildLabelJSX(nx: number, ny: number, r: number, matches: GroupDef[]) {
   const real = matches.filter(g => g.key !== "other");
   if (!real.length) {
     return <text x={nx} y={ny} textAnchor="middle" dominantBaseline="middle"
-      fontSize={fs} fill="white" fontWeight={700} fontFamily={FONT} pointerEvents="none">?</text>;
+      fontSize={fs} fill="black" stroke="white" strokeWidth={2} paintOrder="stroke"
+      fontWeight={700} fontFamily={FONT} pointerEvents="none">?</text>;
   }
   if (real.length === 1) {
     const words = real[0].label.split(" ");
@@ -290,9 +291,11 @@ function buildLabelJSX(nx: number, ny: number, r: number, matches: GroupDef[]) {
     return (
       <>
         <text x={nx} y={y0} textAnchor="middle" dominantBaseline="middle"
-          fontSize={fs} fill="white" fontWeight={700} fontFamily={FONT} pointerEvents="none">{l1}</text>
+          fontSize={fs} fill="black" stroke="white" strokeWidth={2} paintOrder="stroke"
+          fontWeight={700} fontFamily={FONT} pointerEvents="none">{l1}</text>
         {l2 && <text x={nx} y={y0 + lh} textAnchor="middle" dominantBaseline="middle"
-          fontSize={fs} fill="rgba(255,255,255,0.9)" fontWeight={600} fontFamily={FONT} pointerEvents="none">{l2}</text>}
+          fontSize={fs} fill="black" stroke="white" strokeWidth={2} paintOrder="stroke"
+          fontWeight={600} fontFamily={FONT} pointerEvents="none">{l2}</text>}
       </>
     );
   }
@@ -301,11 +304,13 @@ function buildLabelJSX(nx: number, ny: number, r: number, matches: GroupDef[]) {
   return (
     <>
       <text x={nx} y={ny - lh * 0.5} textAnchor="middle" dominantBaseline="middle"
-        fontSize={fs} fill="white" fontWeight={700} fontFamily={FONT} pointerEvents="none">{abbr(real[0])}</text>
+        fontSize={fs} fill="black" stroke="white" strokeWidth={2} paintOrder="stroke"
+        fontWeight={700} fontFamily={FONT} pointerEvents="none">{abbr(real[0])}</text>
       <line x1={nx - r * 0.35} y1={ny} x2={nx + r * 0.35} y2={ny}
-        stroke="rgba(255,255,255,0.4)" strokeWidth={0.8} pointerEvents="none"/>
+        stroke="rgba(0,0,0,0.4)" strokeWidth={0.8} pointerEvents="none"/>
       <text x={nx} y={ny + lh * 0.5} textAnchor="middle" dominantBaseline="middle"
-        fontSize={fs} fill="rgba(255,255,255,0.9)" fontWeight={700} fontFamily={FONT} pointerEvents="none">{abbr(real[1])}</text>
+        fontSize={fs} fill="black" stroke="white" strokeWidth={2} paintOrder="stroke"
+        fontWeight={700} fontFamily={FONT} pointerEvents="none">{abbr(real[1])}</text>
     </>
   );
 }
@@ -328,7 +333,7 @@ function EgoTooltip({ tt }: { tt: TooltipState }) {
     <div style={{
       position: "fixed", left: tt.x, top: tt.y,
       pointerEvents: "none", zIndex: 999,
-      background: "#0f172a", border: "1.5px solid #1e293b", borderRadius: 10,
+      background: "#ececec", border: "1.5px solid #1e293b", borderRadius: 10,
       padding: "14px 16px", minWidth: 190, maxWidth: 260,
       boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
       fontFamily: FONT,
@@ -390,13 +395,13 @@ function NetworkSVG({ nodes, edges, cacheKey, isCumulative, maxEdgeFreq, selecte
   const pos     = forceLayout(nodes, edges, cacheKey);
   const nodeById: Record<string, Node> = Object.fromEntries(nodes.map(n => [n.id, n]));
 
-  const nodeSizeScale = nodes.length <= 2 ? 0.30 : nodes.length <= 4 ? 0.45 : nodes.length <= 8 ? 0.70 : nodes.length <= 12 ? 0.88 : 1.0;
+  const nodeSizeScale = nodes.length <= 2 ? 0.55 : nodes.length <= 4 ? 0.65 : nodes.length <= 8 ? 0.70 : nodes.length <= 12 ? 0.88 : 1.0;
 
   // Adaptive viewBox — enforce a minimum size so sparse networks don't blow up
   const PAD    = 60;
   const posVals = Object.values(pos);
   const maxR   = Math.max(...nodes.map(n =>
-    Math.round(Math.max(16, Math.min(28, 11 + Math.log1p(n.deg) * 3.0)) * nodeSizeScale)
+    Math.round(Math.max(18, Math.min(32, 16 + Math.log1p(n.deg) * 4.0)) * nodeSizeScale)
   ), 10);
   const minX = Math.min(...posVals.map(p => p.x)) - maxR - PAD;
   const maxX = Math.max(...posVals.map(p => p.x)) + maxR + PAD;
@@ -449,9 +454,9 @@ function NetworkSVG({ nodes, edges, cacheKey, isCumulative, maxEdgeFreq, selecte
         let r: number;
         if (isCumulative) {
           const wc = n.weekCount ?? 1;
-          r = Math.max(12, Math.min(28, 10 + Math.log1p(wc) * 5.5)) * nodeSizeScale;
+          r = Math.max(16, Math.min(34, 14 + Math.log1p(wc) * 6.5)) * nodeSizeScale;
         } else {
-          r = Math.max(14, Math.min(26, 12 + Math.log1p(n.deg) * 3.2)) * nodeSizeScale;
+          r = Math.max(18, Math.min(32, 16 + Math.log1p(n.deg) * 4.0)) * nodeSizeScale;
         }
         r = Math.round(r);
 

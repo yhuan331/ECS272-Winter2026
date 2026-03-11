@@ -3,6 +3,7 @@ import { RadialGlyph } from "./components/RadialGlyph";
 import type { ViewMode } from "./components/RadialGlyph";
 import { HCPBarChart } from "./components/HCPBarChart";
 import { EgoNetwork } from "./components/EgoNetwork";
+import { ScatterPlot } from "./components/ScatterPlot";
 import {
   initRealData, switchPatient, switchComparePatient, clearComparePatient,
   selectedPatientId, totalPatientHCP, compareWeeklyData, compareSurgeonEvents, compareTotalHCP,
@@ -10,7 +11,8 @@ import {
   getPatientSurrogateRanking, computePerturbedRisk,
 } from "./realData";
 import type { PatientDot, WeekData, SurrogateFeature } from "./realData";
-import { T, CANCER_COLORS } from "./theme";
+import { classifyHCP } from "./realData";
+import { T, CANCER_COLORS, SPECIALTY_COLORS } from "./theme";
 
 let _temporal: Record<string,unknown> = {};
 let _egoMap:   Record<string,unknown> = {};
@@ -147,114 +149,6 @@ function ColHeader({label,color,id,pt,avgRisk,totalHCP,numWeeks,sharedWeek,onCle
     </div>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SCATTER — used in both overview (full) and compare (compact strip)
-// ─────────────────────────────────────────────────────────────────────────────
-function Scatter({selectedId,compareId,onSelect,onCompare,compact=false,filters,onFilterChange}:{
-  selectedId:string;compareId?:string;
-  onSelect:(id:string)=>void;onCompare?:(id:string)=>void;
-  compact?:boolean;filters:Set<string>;onFilterChange:(f:Set<string>)=>void;
-}){
-  const [hov,setHov]=useState<string|null>(null);
-  const W=compact?1200:520,H=compact?120:430;
-  const pl=compact?36:48,pr=compact?12:16,pt=compact?14:30,pb=compact?16:42;
-  const pw=W-pl-pr,ph=H-pt-pb;
-  const maxTeam=Math.max(...patients.map(p=>p.maxTeam),1);
-  const vis=patients.filter(p=>filters.has(p.cancer));
-  const sorted=[
-    ...vis.filter(p=>p.id!==selectedId&&p.id!==compareId),
-    ...vis.filter(p=>p.id===compareId),
-    ...vis.filter(p=>p.id===selectedId),
-  ];
-  const toSVG=(p:PatientDot)=>({cx:pl+p.x*pw,cy:pt+(1-p.y)*ph});
-
-  return(
-    <div style={{height:"100%",display:"flex",flexDirection:"column",
-      background:"#fff",border:compact?"none":"2px solid #E2E8F0",
-      borderRadius:compact?0:10,boxSizing:"border-box",
-      padding:compact?"4px 8px":"12px 14px"}}>
-      {/* filter row */}
-      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:compact?3:8,flexShrink:0}}>
-        {(["breast","colon","lung"] as const).map(c=>{
-          const on=filters.has(c); const col=CANCER_COLORS[c];
-          return(
-            <button key={c} onClick={()=>onFilterChange((prev:Set<string>)=>{const n=new Set(prev);n.has(c)?(n.size>1&&n.delete(c)):n.add(c);return n;})}
-              style={{display:"flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:5,
-                cursor:"pointer",border:`2px solid ${on?col:"#CBD5E1"}`,
-                background:on?col+"14":"transparent",transition:"all .1s"}}>
-              <span style={{width:7,height:7,borderRadius:"50%",background:on?col:"#CBD5E1",display:"inline-block"}}/>
-              <span style={{color:on?col:"#94A3B8",fontSize:9,fontWeight:800,fontFamily:FONT}}>{c}</span>
-            </button>
-          );
-        })}
-        <span style={{marginLeft:"auto",color:"#94A3B8",fontSize:9,fontFamily:FONT}}>
-          <strong style={{color:"#2B6CB0"}}>click</strong>=A &nbsp;·&nbsp;
-          <strong style={{color:"#6B46C1"}}>right-click</strong>=B
-        </span>
-      </div>
-      {/* svg */}
-      <div style={{flex:1,overflow:"hidden",minHeight:0}}>
-        <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:"100%",display:"block"}}>
-          {[.25,.5,.75].map(f=><g key={f}>
-            <line x1={pl} y1={pt+ph*(1-f)} x2={pl+pw} y2={pt+ph*(1-f)} stroke="#E2E8F0" strokeWidth={1}/>
-            {!compact&&<text x={pl-5} y={pt+ph*(1-f)+3} textAnchor="end" fill="#94A3B8" fontSize={9} fontFamily={FONT}>{Math.round(f*100)}%</text>}
-          </g>)}
-          {!compact&&<>
-            <text x={pl+pw/2} y={H-4} textAnchor="middle" fill="#64748B" fontSize={10} fontFamily={FONT}>Network Size →</text>
-            <text x={12} y={pt+ph/2} textAnchor="middle" fill="#64748B" fontSize={10} fontFamily={FONT} transform={`rotate(-90,12,${pt+ph/2})`}>Avg Risk ↑</text>
-          </>}
-          {sorted.map(p=>{
-            const{cx,cy}=toSVG(p); const col=CANCER_COLORS[p.cancer];
-            const isSel=p.id===selectedId,isCmp=p.id===compareId,isHov=p.id===hov;
-            const r=isSel||isCmp?(compact?5:8):(compact?2:3)+(p.maxTeam/maxTeam)*(compact?2.5:5);
-            return(<g key={p.id} style={{cursor:"pointer"}}
-              onClick={()=>onSelect(p.id)}
-              onContextMenu={e=>{e.preventDefault();onCompare&&onCompare(p.id);}}
-              onMouseEnter={()=>setHov(p.id)} onMouseLeave={()=>setHov(null)}>
-              {isSel&&<><circle cx={cx} cy={cy} r={r+7} fill="none" stroke="#2B6CB0" strokeWidth={2}/><circle cx={cx} cy={cy} r={r+12} fill="none" stroke={col} strokeWidth={.8} opacity={.25}/></>}
-              {isCmp&&<circle cx={cx} cy={cy} r={r+7} fill="none" stroke="#6B46C1" strokeWidth={2.5} strokeDasharray="5,3"/>}
-              {isHov&&!isSel&&!isCmp&&<circle cx={cx} cy={cy} r={r+5} fill="none" stroke={col} strokeWidth={1.5} opacity={.5}/>}
-              {p.survived
-                ?<circle cx={cx} cy={cy} r={r} fill={col} opacity={isSel||isCmp?1:isHov?.9:.3}/>
-                :<circle cx={cx} cy={cy} r={r} fill="none" stroke={col} strokeWidth={2} opacity={isSel||isCmp?1:.6}/>}
-              {(isSel||isCmp)&&<>
-                <rect x={cx+r+2} y={cy-8} width={14} height={10} rx={2} fill={isSel?"#2B6CB0":"#6B46C1"}/>
-                <text x={cx+r+9} y={cy} textAnchor="middle" fill="white" fontSize={7} fontFamily={FONT} fontWeight={800}>{isSel?"A":"B"}</text>
-              </>}
-              {isHov&&!isSel&&!isCmp&&!compact&&(()=>{
-                const flip=cx>pl+pw*.65,tw=92;
-                const tx=flip?cx-tw-5:cx+8,ty=Math.max(pt,Math.min(cy-14,pt+ph-28));
-                return(<g style={{pointerEvents:"none"}}>
-                  <rect x={tx} y={ty} width={tw} height={26} rx={3} fill="white" stroke="#E2E8F0" strokeWidth={1.5}/>
-                  <text x={tx+5} y={ty+11} fill={col} fontSize={9} fontFamily={FONT} fontWeight={800}>{p.id}</text>
-                  <text x={tx+5} y={ty+22} fill="#64748B" fontSize={8} fontFamily={FONT}>{p.cancer} · {p.avgRisk}% · team {p.maxTeam}</text>
-                </g>);
-              })()}
-            </g>);
-          })}
-        </svg>
-      </div>
-      {/* legend */}
-      {!compact&&(
-        <div style={{display:"flex",gap:10,marginTop:5,flexShrink:0,flexWrap:"wrap"}}>
-          {(["breast","colon","lung"] as const).map(c=>(
-            <div key={c} style={{display:"flex",alignItems:"center",gap:3}}>
-              <svg width={8} height={8}><circle cx={4} cy={4} r={3.5} fill={CANCER_COLORS[c]}/></svg>
-              <span style={{color:"#64748B",fontSize:9,textTransform:"uppercase",fontFamily:FONT}}>{c}</span>
-            </div>
-          ))}
-          <span style={{color:"#94A3B8",fontSize:9,fontFamily:FONT}}>filled=survived · hollow=deceased</span>
-          <span style={{marginLeft:"auto",color:"#94A3B8",fontSize:9,fontFamily:FONT}}>{patients.length} pts</span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// WEEK DETAIL — attributes + SHAP for one selected week
-// ─────────────────────────────────────────────────────────────────────────────
 function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}){
   return(
     <div style={{background:"#fff",border:`2px solid ${color}33`,borderRadius:10,padding:"16px 18px"}}>
@@ -295,43 +189,131 @@ function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}
           SURROGATE MODEL WEIGHTS
         </div>
         <div style={{color:"#64748B",fontSize:10,marginBottom:8,fontFamily:FONT}}>
-          Ranked by |weight| · Red = raises risk · Green = protective · w = surrogate coefficient
+          Features active this week · bar = |contribution| this week · red raises risk · green protective
         </div>
-        {(data.topContrib??[]).slice(0,8).map((s,si)=>{
-          const isHarmful = s.weight > 0;
-          const parts = s.feature.split("::");
-          const prefix = parts[0] ?? "";
-          const spec   = (parts[1] ?? "").replace(/^\*/,"").replace(/_/g," ")
-            .replace(/\b\w/g,c=>c.toUpperCase()).trim();
-          const suffix = (parts[2] ?? "").replace(/[_|]/g," ").trim();
-          const lbl    = prefix.includes("SPECIALTY") || prefix.includes("PROV_TYPE")
-            ? spec : `${spec}${suffix ? " · "+suffix : ""}`;
-          const maxW   = Math.max(...(data.topContrib??[]).slice(0,8).map(x=>Math.abs(x.weight)),0.001);
-          const barW   = Math.min(90, (Math.abs(s.weight)/maxW)*90);
-          const col    = isHarmful ? "#E53E3E" : "#38A169";
-          return(
-            <div key={si} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",
-              borderBottom:"1px solid #F1F5F9"}}>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{color:"#0F172A",fontSize:11,fontFamily:FONT,lineHeight:1.3,
-                  overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{lbl}</div>
-                <div style={{color:"#94A3B8",fontSize:9,fontFamily:FONT,marginTop:1}}>
-                  val={s.value.toFixed(2)} · contrib={s.contribution>=0?"+":""}{s.contribution.toFixed(3)}
-                </div>
-              </div>
-              <div style={{width:90,height:7,background:"#F1F5F9",borderRadius:3,overflow:"hidden",flexShrink:0}}>
-                <div style={{height:"100%",width:barW,background:col,borderRadius:3,
-                  transition:"width .2s"}}/>
-              </div>
-              <span style={{color:col,fontSize:11,fontWeight:800,
-                minWidth:52,textAlign:"right",fontFamily:FONT}}>
-                {isHarmful?"+":""}{s.weight.toFixed(3)}
-              </span>
-            </div>
+        {(()=>{
+          // ── Provider type code → human label ──────────────────────────────
+          const PROV_TYPE_LABELS: Record<string,string> = {
+            "N":"Nursing / NP", "MD":"Physician (MD)", "RN":"Registered Nurse",
+            "NP":"Nurse Practitioner", "PA":"Physician Assistant", "LVN":"LVN / LPN",
+            "DO":"Physician (DO)", "PHD":"Psychologist (PhD)", "PHARMD":"Pharmacist",
+            "RPH":"Pharmacist (RPh)", "PT":"Physical Therapist", "OT":"Occupational Therapist",
+            "SLP":"Speech-Language Pathologist", "RT":"Respiratory Therapist",
+            "RD":"Registered Dietitian", "SW":"Social Worker", "LCSW":"Social Worker (LCSW)",
+            "MSW":"Social Worker (MSW)", "TECH":"Technician", "CNA":"Nursing Assistant",
+            "MA":"Medical Assistant", "SCRIBE":"Scribe",
+          };
+
+          // ── Decode a raw feature string into a clean display label ────────
+          function decodeFeature(feat: string): string {
+            const parts  = feat.split("::");
+            const prefix = parts[0] ?? "";
+            const value  = (parts[1] ?? "").replace(/^\*/,"").trim();
+            // Provider type: look up in label map, else humanize
+            if (prefix === "ACCESS_USER_PROV_TYPE") {
+              const upper = value.toUpperCase().replace(/[^A-Z0-9]/g," ").trim();
+              // Try exact key first
+              for (const [k,v] of Object.entries(PROV_TYPE_LABELS)) {
+                if (upper === k) return v;
+              }
+              // Strip leading dots/punctuation and title-case
+              return value.replace(/^[^a-zA-Z0-9]+/,"").replace(/_/g," ")
+                .replace(/\b\w/g,c=>c.toUpperCase()).trim() || "Provider Type";
+            }
+            if (prefix === "ACCESS_USER_PROV_SPECIALTY") {
+              return value.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()).trim();
+            }
+            if (prefix === "ACCESS_USER_CLINICIAN_TITLE") {
+              return value.replace(/^[^a-zA-Z0-9]+/,"").replace(/_/g," ")
+                .replace(/\b\w/g,c=>c.toUpperCase()).trim() || "Clinician Title";
+            }
+            if (prefix === "ACCESS_USER_IS_RESIDENT")  return "Resident";
+            if (prefix === "INPATIENT_DEPT_YN")         return "Inpatient Dept";
+            return value.replace(/^[^a-zA-Z0-9]+/,"").replace(/_/g," ")
+              .replace(/\b\w/g,c=>c.toUpperCase()).trim() || feat;
+          }
+
+          // ── Merge freq + present rows for the same entity ─────────────────
+          // Key = prefix::value (strip the ::freq / ::present suffix)
+          const mergedMap: Record<string, {
+            label: string;
+            totalContrib: number;
+            totalValue: number;
+            weight: number;
+            active: boolean;
+            feat: string;
+          }> = {};
+
+          for (const s of (data.topContrib ?? [])) {
+            const parts  = s.feature.split("::");
+            const key    = `${parts[0]}::${parts[1] ?? ""}`;
+            const label  = decodeFeature(s.feature);
+            if (!mergedMap[key]) {
+              mergedMap[key] = {
+                label, feat: s.feature,
+                totalContrib: 0, totalValue: 0,
+                weight: s.weight, active: false,
+              };
+            }
+            mergedMap[key].totalContrib += s.contribution;
+            mergedMap[key].totalValue   += s.value;
+            if (s.value !== 0) mergedMap[key].active = true;
+          }
+
+          const merged = Object.values(mergedMap)
+            .sort((a,b) => Math.abs(b.totalContrib) - Math.abs(a.totalContrib));
+
+          const active   = merged.filter(m => m.active);
+          const inactive = merged.filter(m => !m.active).slice(0, 3);
+          const display  = [...active, ...inactive];
+
+          if (display.length === 0) return (
+            <span style={{color:"#94A3B8",fontSize:11,fontFamily:FONT}}>No surrogate data for this week</span>
           );
-        })}
-        {(!data.topContrib||data.topContrib.length===0)&&
-          <span style={{color:"#94A3B8",fontSize:11,fontFamily:FONT}}>No surrogate data for this week</span>}
+
+          const maxC = Math.max(...display.map(m => Math.abs(m.totalContrib)), 0.001);
+
+          return display.map((m, si) => {
+            const isHarmful = m.totalContrib > 0;
+            const barW = Math.min(88, (Math.abs(m.totalContrib) / maxC) * 88);
+            const col  = m.active ? (isHarmful ? "#E53E3E" : "#38A169") : "#CBD5E1";
+            return (
+              <div key={si} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",
+                borderBottom:"1px solid #F1F5F9", opacity: m.active ? 1 : 0.38}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{color: m.active ? "#0F172A" : "#94A3B8",
+                    fontSize:11,fontFamily:FONT,fontWeight: m.active ? 600 : 400,
+                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    {m.label}
+                  </div>
+                  <div style={{color:"#94A3B8",fontSize:9,fontFamily:FONT,marginTop:1}}>
+                    {m.active
+                      ? `val=${m.totalValue.toFixed(1)} · w=${m.weight > 0 ? "+" : ""}${m.weight.toFixed(3)}`
+                      : "not active this week"
+                    }
+                  </div>
+                </div>
+                <div style={{width:88,height:7,background:"#F1F5F9",borderRadius:3,overflow:"hidden",flexShrink:0}}>
+                  <div style={{height:"100%",width: m.active ? barW : 0,
+                    background:col,borderRadius:3,transition:"width .2s"}}/>
+                </div>
+                <span style={{color:col,fontSize:11,fontWeight:800,
+                  minWidth:52,textAlign:"right",fontFamily:FONT}}>
+                  {m.active
+                    ? `${m.totalContrib >= 0 ? "+" : ""}${m.totalContrib.toFixed(3)}`
+                    : <span style={{color:"#CBD5E1",fontWeight:400,fontSize:10}}>—</span>
+                  }
+                </span>
+              </div>
+            );
+          });
+        })()}
+        {data.topContrib?.length > 0 &&
+          (data.topContrib.filter(s => s.value !== 0).length === 0) && (
+          <div style={{padding:"8px 0",color:"#94A3B8",fontSize:11,fontFamily:FONT}}>
+            No features active this week — minimal care contact.
+          </div>
+        )}
       </div>
     </div>
   );
@@ -342,8 +324,8 @@ function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}
 // ─────────────────────────────────────────────────────────────────────────────
 interface CGProps{weeklySnap:WeekData[];surgeonSnap:number[];totalHCP:number;
   selectedWeek:number|null;onSelectWeek:(w:number|null)=>void;
-  onHoverWeek:(d:WeekData|null)=>void;mode:ViewMode;}
-function CompareGlyph({weeklySnap,surgeonSnap,totalHCP,selectedWeek,onSelectWeek,onHoverWeek,mode}:CGProps){
+  mode:ViewMode;}
+function CompareGlyph({weeklySnap,surgeonSnap,totalHCP,selectedWeek,onSelectWeek,mode}:CGProps){
   const [hovIdx,setHovIdx]=useS<number|null>(null);
   const svgRef=useR<SVGSVGElement>(null);
   const CX=350,CY=280,BASE_R=130,CENTER_R=110,SIZE=700;
@@ -434,9 +416,9 @@ function CompareGlyph({weeklySnap,surgeonSnap,totalHCP,selectedWeek,onSelectWeek
           })}
           {spikes.map((s,i)=>(
             <path key={`ch${i}`} d={s.hit} fill="transparent" stroke="none" style={{cursor:"pointer"}}
-              onMouseEnter={()=>{setHovIdx(i);onHoverWeek(weeklySnap[i]);}}
-              onMouseMove={()=>{setHovIdx(i);onHoverWeek(weeklySnap[i]);}}
-              onMouseLeave={()=>{setHovIdx(null);onHoverWeek(null);}}
+              onMouseEnter={()=>{setHovIdx(i);}}
+              onMouseMove={()=>{setHovIdx(i);}}
+              onMouseLeave={()=>{setHovIdx(null);}}
               onClick={()=>{const w=weeklySnap[i];if(!w)return;onSelectWeek(selectedWeek===w.week?null:w.week);}}
             />
           ))}
@@ -517,9 +499,8 @@ export default function App(){
   const [cmpTick,        setCmpTick]        = useState(0);
   const [mode,           setMode]           = useState<ViewMode>("delta");
 
-  // single-view week
+  // single-view week (click only — no hover)
   const [selWeek,        setSelWeek]        = useState<number|null>(null);
-  const [hovData,        setHovData]        = useState<WeekData|null>(null);
 
   // compare shared week
   const [sharedWeek,     setSharedWeek]     = useState<number|null>(null);
@@ -558,13 +539,12 @@ export default function App(){
   },[]);
 
   const handleSelect=(id:string)=>{
-    // Toggle: clicking the already-selected patient deselects
     if(id===focusId){
-      setFocusId("");setSelWeek(null);setHovData(null);setTick(t=>t+1);
+      setFocusId("");setSelWeek(null);setTick(t=>t+1);
       return;
     }
     switchPatient(id,_temporal,_egoMap as never);
-    setFocusId(id);setSelWeek(null);setHovData(null);setSharedWeek(null);setTick(t=>t+1);
+    setFocusId(id);setSelWeek(null);setSharedWeek(null);setTick(t=>t+1);
   };
   const handleCompare=(id:string)=>{
     if(id===focusId) return;
@@ -585,6 +565,7 @@ export default function App(){
     <div style={{width:"100%",height:"100vh",background:"#0F172A",display:"flex",
       flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
       <div style={{color:"white",fontFamily:FONT,fontSize:20,fontWeight:800,letterSpacing:3}}>
+        ONCO<span style={{color:"#60A5FA"}}>NET</span>
       </div>
       <div style={{color:"#475569",fontFamily:FONT,fontSize:11,letterSpacing:2}}>LOADING PATIENT DATA…</div>
     </div>
@@ -598,7 +579,7 @@ export default function App(){
   const hcpGroups=[...new Set(weeklyData.flatMap(w=>w.hcpNames))].filter(Boolean).slice(0,24);
   const selWeekDataA=sharedWeek!=null?weeklyData.find(w=>w.week===sharedWeek)??null:null;
   const selWeekDataB=sharedWeek!=null?cmpSnap.find(w=>w.week===sharedWeek)??null:null;
-  const singleWeekData=hovData??(selWeek!=null?weeklyData.find(w=>w.week===selWeek)??null:null);
+  const singleWeekData = selWeek!=null ? (weeklyData.find(w=>w.week===selWeek)??null) : null;
 
   // Has a patient been selected yet?
   const patientSelected = !!focusId;
@@ -652,7 +633,7 @@ export default function App(){
         )}
 
         {/* Mode toggle */}
-        {/* <div style={{display:"flex",gap:0,background:"#FFFFFF10",borderRadius:7,padding:2,marginLeft:6,flexShrink:0}}>
+        <div style={{display:"flex",gap:0,background:"#FFFFFF10",borderRadius:7,padding:2,marginLeft:6,flexShrink:0}}>
           {(["delta","prob"] as const).map(m=>(
             <button key={m} onClick={()=>setMode(m)} style={{
               padding:"4px 12px",borderRadius:5,cursor:"pointer",
@@ -661,7 +642,7 @@ export default function App(){
               fontSize:10,fontFamily:FONT,fontWeight:800,letterSpacing:.8,transition:"all .1s",
             }}>{m==="delta"?"Δ PROB":"RISK %"}</button>
           ))}
-        </div> */}
+        </div>
 
         {/* Patient chips — right side */}
         <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
@@ -678,45 +659,21 @@ export default function App(){
           flex:1,minHeight:0,display:"flex",
           transition:"all .2s",
         }}>
-          {/* LEFT: Scatter
-              - No patient selected → full width (100%)
-              - Patient selected → 45% */}
+          {/* LEFT: Scatter — full width before patient, 45% after */}
           <div style={{
             flexShrink:0,
             width: patientSelected ? "45%" : "100%",
             transition:"width .25s ease",
             borderRight: patientSelected ? "3px solid #E2E8F0" : "none",
             display:"flex",flexDirection:"column",
-            background:"#fff",overflow:"hidden",
+            background:"#F8FAFC",overflow:"hidden",
+            padding:"10px 12px",
           }}>
-            {/* Scatter header */}
-            <div style={{
-              flexShrink:0,padding:"10px 16px 8px",
-              borderBottom:"2px solid #E2E8F0",
-              display:"flex",alignItems:"center",gap:10,
-            }}>
-              <span style={{color:"#0F172A",fontSize:12,fontWeight:800,fontFamily:FONT,letterSpacing:1}}>
-                COHORT OVERVIEW
-              </span>
-              <span style={{color:"#64748B",fontSize:10,fontFamily:FONT}}>{patients.length} patients</span>
-              {!patientSelected&&(
-                <span style={{color:"#94A3B8",fontSize:10,fontFamily:FONT,marginLeft:8}}>
-                  Click a patient to begin analysis
-                </span>
-              )}
-              {patientSelected&&(
-                <span style={{color:"#94A3B8",fontSize:10,fontFamily:FONT,marginLeft:8}}>
-                  Click selected dot again to deselect
-                </span>
-              )}
-            </div>
-            {/* Scatter body */}
-            <div style={{flex:1,minHeight:0,padding:"10px 12px"}}>
-              <Scatter
-                selectedId={focusId} compareId={cmpId}
-                onSelect={handleSelect} onCompare={handleCompare}
-                filters={filters} onFilterChange={setFilters}/>
-            </div>
+            <ScatterPlot
+              selectedId={focusId} compareId={cmpId}
+              onSelectPatient={handleSelect}
+              onComparePatient={handleCompare}
+              filters={filters} onFilterChange={setFilters}/>
           </div>
 
           {/* RIGHT: Single patient detail — only shows when patient selected, 55% */}
@@ -777,8 +734,7 @@ export default function App(){
                   <div style={{flex:"0 0 58%",minHeight:0}}>
                     <RadialGlyph key={focusId+tick}
                       selectedWeek={selWeek}
-                      onSelectWeek={w=>{setSelWeek(w);if(w===null)setHovData(null);}}
-                      onHoverWeek={setHovData}
+                      onSelectWeek={w=>setSelWeek(w)}
                       mode={mode} onModeChange={setMode}
                       accentColor="#2B6CB0"/>
                   </div>
@@ -833,7 +789,8 @@ export default function App(){
                     right={<span style={{color:"#94A3B8",fontSize:10,fontFamily:FONT}}>HCP co-access graph</span>}/>
                   <div style={{border:"2px solid #0F172A",borderTop:"none",
                     borderRadius:"0 0 8px 8px"}}>
-                    <EgoNetwork key={focusId} patientId={focusId} accentColor="#2B6CB0"/>
+                    <EgoNetwork key={focusId} patientId={focusId} accentColor="#2B6CB0"
+                      initialWeek={selWeek}/>
                   </div>
                 </div>
 
@@ -866,7 +823,6 @@ export default function App(){
                   <RadialGlyph key={focusId+tick+"cmp"}
                     selectedWeek={sharedWeek}
                     onSelectWeek={setSharedWeek}
-                    onHoverWeek={()=>{}}
                     mode={mode} onModeChange={setMode}
                     accentColor="#2B6CB0"/>
                 </div>
@@ -930,7 +886,7 @@ export default function App(){
                   <CompareGlyph key={cmpId+cmpTick}
                     weeklySnap={cmpSnap} surgeonSnap={cmpSurgSnap} totalHCP={cmpHCPSnap}
                     selectedWeek={sharedWeek} onSelectWeek={setSharedWeek}
-                    onHoverWeek={()=>{}} mode={mode}/>
+                    mode={mode}/>
                 </div>
 
                 {/* Summary stats */}
@@ -992,41 +948,25 @@ export default function App(){
           // Compute surrogate ranking from the active patient's weekly data
           const surrogateRanking: SurrogateFeature[] = getPatientSurrogateRanking(wiData, 60);
 
+          // Canonical colors — match LEVEL1_GROUPS in EgoNetwork exactly
           const SPEC_COLORS: Record<string,string> = {
-            "Surgical Oncology":"#7c3aed","Medical Oncology":"#be185d","Nursing":"#0891b2",
-            "Internal Medicine":"#2A9D8F","Int Med Specialty":"#1a47c8","Radiology":"#0284c7",
-            "Emergency Medicine":"#e07b39","Mental Health":"#d97706","Pharmacy":"#2EC4B6",
-            "Pathology":"#6D6875","Surgery Other":"#884EA0","Therapy":"#1ABC9C",
-            "Radiation Oncology":"#CB4335","Patient Support":"#92400e","Dietary":"#56C596",
-            "General Practice":"#E9C46A","Family Practice":"#F4A261","Ancillary":"#7B8CDE",
-            "Urgent Care":"#f97316","Pediatrics":"#FF9F1C","Specialty Other":"#D4AC0D",
-            "Scribe":"#AAB7B8","Provider Type":"#64748b","Clinician Title":"#64748b",
-            "Resident":"#64748b","Inpatient":"#64748b","Other":"#94a3b8",
+            ...SPECIALTY_COLORS,
+            "Provider Type":"#64748b","Clinician Title":"#64748b",
+            "Resident":"#64748b","Inpatient":"#64748b",
           };
+
+          // featGroupLabel: uses same classifyHCP logic (canonical terms) for specialty features;
+          // handles non-specialty prefixes separately
           function featGroupLabel(feat: string): string {
             const prefix = feat.split("::")[0];
             if (prefix==="ACCESS_USER_IS_RESIDENT") return "Resident";
             if (prefix==="ACCESS_USER_CLINICIAN_TITLE") return "Clinician Title";
             if (prefix==="INPATIENT_DEPT_YN") return "Inpatient";
             if (prefix==="ACCESS_USER_PROV_TYPE") return "Provider Type";
-            const spec = (feat.split("::")[1]??"").toUpperCase();
-            const surgOncTerms=["SURGERY","SURG","ANESTHES","UROLOGY","COLON/RECTAL","CARDIOTHORAC","GYNECOLOG"];
-            if(surgOncTerms.some(t=>spec.includes(t))) return "Surgical Oncology";
-            if(spec.includes("ONCOLOGY")||spec.includes("HEMATOL")||spec.includes("HOSPICE")||spec.includes("PALLIATIVE")) return "Medical Oncology";
-            if(spec.includes("RADIATION")) return "Radiation Oncology";
-            if(spec.includes("NURS")||spec.includes("NP ")||spec.includes("PHYSICIAN ASSIST")) return "Nursing";
-            if(spec.includes("INTERNAL MED")||spec.includes("HOSPITALIST")) return "Internal Medicine";
-            if(spec.includes("CARDIOLOGY")||spec.includes("PULMONARY")||spec.includes("GASTRO")||spec.includes("NEPHRO")||spec.includes("ENDOCRIN")) return "Int Med Specialty";
-            if(spec.includes("RADIOL")||spec.includes("NUCLEAR")) return "Radiology";
-            if(spec.includes("EMERGENCY")) return "Emergency Medicine";
-            if(spec.includes("PSYCH")||spec.includes("MENTAL")||spec.includes("PSYCHOL")) return "Mental Health";
-            if(spec.includes("PHARM")) return "Pharmacy";
-            if(spec.includes("PATH")||spec.includes("LAB")) return "Pathology";
-            if(spec.includes("THERAP")||spec.includes("REHAB")||spec.includes("SPEECH")||spec.includes("OCCUP")) return "Therapy";
-            if(spec.includes("DIET")||spec.includes("NUTRI")) return "Dietary";
-            if(spec.includes("URGENT")) return "Urgent Care";
-            if(spec.includes("PATIENT SUPPORT")||spec.includes("SOCIAL WORK")||spec.includes("CASE MANAGE")) return "Patient Support";
-            return "Other";
+            // For specialty features, extract the raw specialty value and classify it
+            const rawSpec = (feat.split("::")[1] ?? "").replace(/_/g, " ");
+            const classified = classifyHCP(rawSpec, "", "");
+            return classified === "Unknown" ? "Other" : classified;
           }
 
           const groupMap: Record<string,{color:string;features:SurrogateFeature[];totalImportance:number}> = {};

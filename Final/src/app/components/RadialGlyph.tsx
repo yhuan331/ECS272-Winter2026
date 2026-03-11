@@ -73,18 +73,15 @@ function arcPath(cx: number, cy: number, r: number, startDeg: number, endDeg: nu
 interface RadialProps {
   selectedWeek: number | null;
   onSelectWeek: (week: number | null) => void;
-  onHoverWeek: (data: WeekData | null) => void;
   mode?: ViewMode;
   onModeChange?: (mode: ViewMode) => void;
-  // For comparison layout: smaller/compact rendering
   compact?: boolean;
-  accentColor?: string; // override accent for compare panel
+  accentColor?: string;
 }
 
 export function RadialGlyph({
   selectedWeek,
   onSelectWeek,
-  onHoverWeek,
   mode: modeProp,
   onModeChange,
   compact = false,
@@ -207,16 +204,14 @@ export function RadialGlyph({
   const wLE = polarToCart(CX, CY, BASE_R + 130, wLA);
   const wLL = polarToCart(CX, CY, BASE_R + 144, wLA);
 
-  // ── Hover ────────────────────────────────────────────────────────────────
+  // ── Hover (visual feedback only — no data reveal on hover) ──────────────
   const handleSpikeHover = useCallback((i: number) => {
     setHoveredIdx(i);
-    onHoverWeek(weeklyData[i]);
   }, []);
 
   const handleSpikeLeave = useCallback(() => {
     setHoveredIdx(null);
-    onHoverWeek(null);
-  }, [onHoverWeek]);
+  }, []);
 
   // ── Mode config ──────────────────────────────────────────────────────────
   const modeConfig = {
@@ -439,13 +434,26 @@ export function RadialGlyph({
             />
           )}
 
-          {/* Hover radial line */}
+          {/* Hover radial line + week label */}
           {hoveredIdx !== null && (() => {
-            const angle = spikePaths[hoveredIdx].centerAngle;
+            const sp    = spikePaths[hoveredIdx];
+            const angle = sp.centerAngle;
             const inner = polarToCart(CX, CY, BASE_R - 5, angle);
-            const outer = polarToCart(CX, CY, spikePaths[hoveredIdx].outerR + 14, angle);
-            return <line x1={inner.x} y1={inner.y} x2={outer.x} y2={outer.y}
-              stroke="rgba(0,0,0,0.2)" strokeWidth={0.8} strokeDasharray="3,3" />;
+            const outer = polarToCart(CX, CY, sp.outerR + 14, angle);
+            const lblPt = polarToCart(CX, CY, sp.outerR + 26, angle);
+            const wk    = weeklyData[hoveredIdx];
+            const isSelected = selectedWeek !== null && wk?.week === selectedWeek;
+            return (
+              <g>
+                <line x1={inner.x} y1={inner.y} x2={outer.x} y2={outer.y}
+                  stroke="rgba(0,0,0,0.25)" strokeWidth={0.8} strokeDasharray="3,3" />
+                <text x={lblPt.x} y={lblPt.y} textAnchor="middle" dominantBaseline="central"
+                  fontSize={9} fill={isSelected ? active.accent : T.textSecondary}
+                  fontFamily={FONT} fontWeight={700}>
+                  {isSelected ? `w${wk?.week} ✓` : `w${wk?.week}`}
+                </text>
+              </g>
+            );
           })()}
 
           {/* Week annotations */}
@@ -509,7 +517,7 @@ export function EmptyPanel({ avgRiskAll, peakWeek, totalPatientHCP, avgNotes, mo
   return (
     <div style={{ fontFamily: T.font }}>
       <div style={{ color: T.textFaint, fontSize: 11, letterSpacing: 1.5, marginBottom: 8 }}>
-        HOVER A SPIKE TO INSPECT
+        CLICK A SPIKE TO INSPECT
       </div>
       <div style={{ color: T.textMuted, fontSize: 9, marginBottom: 8 }}>
         {isProb
@@ -560,9 +568,9 @@ export function WeekPanel({ data, pinned, mode = "delta" }: { data: WeekData; pi
         <span style={{ color: T.textFaint, fontSize: 9, marginLeft: "auto" }}>
           {pinned
             ? <span style={{ color: "#2B6CB0", background: "#EEF2FF", padding: "2px 8px", borderRadius: 4, border: "1px solid #2B6CB044", fontSize: 9 }}>
-                📌 PINNED — click again to unpin
+                📌 SELECTED — click same spike to deselect
               </span>
-            : "hover or click spike to inspect"
+            : "click a spike to inspect"
           }
         </span>
       </div>
