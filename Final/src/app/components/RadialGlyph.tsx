@@ -561,6 +561,35 @@ export function EmptyPanel({ avgRiskAll, peakWeek, totalPatientHCP, mode, peakDe
 
 export function WeekPanel({ data, pinned, mode = "delta" }: { data: WeekData; pinned?: boolean; mode?: ViewMode }) {
   const isSurgeonWeek = surgeonEvents.includes(data.week);
+
+  // Build active specialty list from hcpNames (string[]) or hcpSnaps objects,
+  // with fallback to PROV_SPECIALTY entries in topContrib
+  const rawNames: string[] = (data as any).hcpNames
+    ?? ((data as any).hcpSnaps ?? []).map((h: any) => (h.specialty || h.providerType || "").trim());
+
+  const specialtiesFromSnaps = [...new Set(
+    rawNames
+      .map(n => (n ?? "").trim())
+      .filter(n => n && n !== "nan" && n !== "null" && n !== "undefined" && n !== "UNKNOWN" && n !== "NONE")
+  )];
+
+  const specialtiesFromContrib = specialtiesFromSnaps.length === 0
+    ? [...new Set(
+        (data.topContrib ?? [])
+          .filter(c => c.feature.includes("PROV_SPECIALTY") || c.feature.includes("SPECIALTY"))
+          .map(c => {
+            const parts = c.feature.split("::");
+            const raw = parts[1] ?? parts[0];
+            return raw.replace(/^\*/, "").replace(/_/g, " ")
+              .replace(/\b\w/g, (ch: string) => ch.toUpperCase()).trim();
+          })
+          .filter(n => n && n.length > 1)
+      )]
+    : [];
+
+  const activeSpecialties = (specialtiesFromSnaps.length > 0 ? specialtiesFromSnaps : specialtiesFromContrib).slice(0, 12);
+  const fromContrib = specialtiesFromSnaps.length === 0 && specialtiesFromContrib.length > 0;
+
   return (
     <div style={{ fontFamily: T.font }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
@@ -596,11 +625,19 @@ export function WeekPanel({ data, pinned, mode = "delta" }: { data: WeekData; pi
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
         <div>
-          <div style={{ color: T.textSecondary, fontSize: 13, fontWeight: 700, marginBottom: 8, letterSpacing: 1 }}>ACTIVE SPECIALTIES</div>
+          <div style={{ color: T.textSecondary, fontSize: 13, fontWeight: 700, marginBottom: 4, letterSpacing: 1 }}>
+            ACTIVE SPECIALTIES
+            {fromContrib && (
+              <span style={{ fontWeight: 400, fontSize: 10, color: T.textFaint, marginLeft: 6 }}>(from model features)</span>
+            )}
+          </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-            {([...new Set((data.hcpSnaps ?? []).map(h => (h.specialty || h.providerType || "").trim()).filter(n => n && n !== "nan" && n !== "null"))]).slice(0, 10).map((name, ni) => (
-              <span key={ni} style={{ color: T.textSecondary, fontSize: 13, lineHeight: 1.8 }}>· {name}</span>
-            ))}
+            {activeSpecialties.length > 0
+              ? activeSpecialties.map((name, ni) => (
+                  <span key={ni} style={{ color: T.textSecondary, fontSize: 13, lineHeight: 1.8 }}>· {name}</span>
+                ))
+              : <span style={{ color: T.textFaint, fontSize: 11, fontStyle: "italic" }}>No specialty data available</span>
+            }
           </div>
         </div>
         <div>

@@ -169,18 +169,18 @@ function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:14}}>
         <Stat label="Team Size"      value={String(data.teamSize)}  color="#6B9FFF"/>
         <Stat label="Care Diversity" value={data.entropy==null?"—":`${data.entropy.toFixed(2)}`} color="#A78BFA"/>
-        <Stat label="HCP Types"      value={String(new Set(data.hcpSnaps?.map(h=>h.specialty||h.providerType).filter(Boolean)).size??0)} color={color}/>
+        <Stat label="HCP Types"      value={String((data.hcpNames??[]).length)} color={color}/>
       </div>
       <div style={{marginBottom:14}}>
         <div style={{color:"#0F172A",fontSize:11,fontWeight:800,letterSpacing:1,marginBottom:6,fontFamily:FONT}}>
           ACTIVE SPECIALTIES
         </div>
         <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-          {([...new Set((data.hcpSnaps??[]).map(h=>(h.specialty||h.providerType||"").trim()).filter(n=>n&&n!=="nan"&&n!=="null"))]).map((n,i)=>(
+          {(data.hcpNames??[]).filter(n=>n&&n!=="nan"&&n!=="null"&&n!=="UNKNOWN"&&n!=="NONE").slice(0,12).map((n,i)=>(
             <span key={i} style={{background:color+"10",border:`2px solid ${color}22`,
               borderRadius:4,padding:"3px 9px",color,fontSize:10,fontFamily:FONT,fontWeight:700}}>{n}</span>
           ))}
-          {(!data.hcpSnaps||data.hcpSnaps.length===0)&&
+          {(!(data.hcpNames??[]).length)&&
             <span style={{color:"#94A3B8",fontSize:10,fontFamily:FONT}}>No specialty data</span>}
         </div>
       </div>
@@ -745,7 +745,7 @@ export default function App(){
   const cmpSum=getPatientSummary(cmpSnap);
   const focusPt=getPatientById(focusId);
   const cmpPt=getPatientById(cmpId);
-  const hcpGroups=[...new Set(weeklyData.flatMap(w=>(w.hcpSnaps??[]).map(h=>h.specialty||h.providerType)))].filter(Boolean).slice(0,24);
+  const hcpGroups=[...new Set(weeklyData.flatMap(w=>(w.hcpNames??[])))].filter(Boolean).slice(0,24);
   const selWeekDataA=sharedWeek!=null?weeklyData.find(w=>w.week===sharedWeek)??null:null;
   const selWeekDataB=sharedWeek!=null?cmpSnap.find(w=>w.week===sharedWeek)??null:null;
   const singleWeekData = selWeek!=null ? (weeklyData.find(w=>w.week===selWeek)??null) : null;
