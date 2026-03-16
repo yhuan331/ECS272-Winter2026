@@ -169,53 +169,89 @@ function buildCumulativeNetwork(weeklySnapshots: Record<string, WeeklySnapshot>)
   return { nodes, edges };
 }
 
-// ── Force layout (verbatim logic from ego.js) ──────────────────────────────────
+// ── Force layout ──────────────────────────────────────────────────────────────
 const _layoutCache: Record<string, Record<string, { x: number; y: number }>> = {};
 
 function forceLayout(nodes: Node[], edges: Edge[], cacheKey: string): Record<string, { x: number; y: number }> {
   if (_layoutCache[cacheKey]) return _layoutCache[cacheKey];
   if (!nodes.length) return {};
 
-  const STEPS = 280, REPEL = 2800, ATTRACT = 0.018, ANCHOR = 0.035;
-  const RADIAL_SPRING = 0.055, TARGET_R_MIN = 80, TARGET_R_MAX = 200, MAX_VEL = 7;
-  const maxDeg = Math.max(...nodes.map(n => n.deg), 1);
+  const n = nodes.length;
+  // Scale parameters to network size
+  const STEPS        = n > 20 ? 500 : 350;
+  const REPEL        = n > 20 ? 1800 : 2800;
+  const ATTRACT      = 0.022;
+  // Stronger anchor for large networks so groups cluster visibly
+  const ANCHOR       = n > 20 ? 0.18 : 0.10;
+  // Angular anchor: pulls node toward its group's target angle from center
+  const ANG_ANCHOR   = n > 20 ? 0.12 : 0.07;
+  const RADIAL_SPRING = 0.04;
+  const TARGET_R_MIN = n > 20 ? 120 : 80;
+  const TARGET_R_MAX = n > 20 ? 260 : 200;
+  const MAX_VEL      = 6;
+
+  const maxDeg = Math.max(...nodes.map(nd => nd.deg), 1);
 
   const targetR: Record<string, number> = {};
-  nodes.forEach(n => {
-    targetR[n.id] = TARGET_R_MIN + (n.deg / maxDeg) * (TARGET_R_MAX - TARGET_R_MIN);
+  nodes.forEach(nd => {
+    targetR[nd.id] = TARGET_R_MIN + (nd.deg / maxDeg) * (TARGET_R_MAX - TARGET_R_MIN);
   });
 
+  // Initial placement: place each node precisely at its group angle,
+  // with small jitter so same-group nodes don't stack exactly
+  const groupCounts: Record<string, number> = {};
   const pos: Record<string, { x: number; y: number }> = {};
   const vel: Record<string, { x: number; y: number }> = {};
-  nodes.forEach(n => {
-    const g   = primaryGroup(n.groupMatches);
-    const ang = ((g.angle ?? 0) * Math.PI) / 180;
-    const j   = () => (Math.random() - 0.5) * 40;
-    pos[n.id] = { x: CX + targetR[n.id] * Math.cos(ang) + j(), y: CY + targetR[n.id] * Math.sin(ang) + j() };
-    vel[n.id] = { x: 0, y: 0 };
+
+  nodes.forEach(nd => {
+    const g    = primaryGroup(nd.groupMatches);
+    const ang  = ((g.angle ?? 0) * Math.PI) / 180;
+    const gKey = g.label;
+    groupCounts[gKey] = (groupCounts[gKey] ?? 0) + 1;
+    const idx  = groupCounts[gKey] - 1;
+    // Spread same-group nodes in a small arc around the group angle
+    const spread = 0.15 * idx;
+    const jAng   = ang + (Math.random() - 0.5) * spread;
+    const r      = targetR[nd.id] + (Math.random() - 0.5) * 20;
+    pos[nd.id] = { x: CX + r * Math.cos(jAng), y: CY + r * Math.sin(jAng) };
+    vel[nd.id] = { x: 0, y: 0 };
   });
 
   const adj: Record<string, string[]> = {};
-  nodes.forEach(n => { adj[n.id] = []; });
+  nodes.forEach(nd => { adj[nd.id] = []; });
   edges.forEach(e => {
     if (adj[e.s]) adj[e.s].push(e.t);
     if (adj[e.t]) adj[e.t].push(e.s);
   });
 
-  function centroid(key: string) {
-    const m = nodes.filter(n => primaryGroup(n.groupMatches).key === key);
-    if (!m.length) return { x: CX, y: CY };
-    const s = m.reduce((a, n) => ({ x: a.x + pos[n.id].x, y: a.y + pos[n.id].y }), { x: 0, y: 0 });
+  // Group target positions: each group has a fixed angular anchor point
+  const groupTargetPos: Record<string, { x: number; y: number }> = {};
+  LEVEL1_GROUPS.forEach(g => {
+    const ang = (g.angle * Math.PI) / 180;
+    const r   = (TARGET_R_MIN + TARGET_R_MAX) / 2;
+    groupTargetPos[g.label] = { x: CX + r * Math.cos(ang), y: CY + r * Math.sin(ang) };
+  });
+
+  // Centroid of current positions for a group
+  function centroid(label: string) {
+    const m = nodes.filter(nd => primaryGroup(nd.groupMatches).label === label);
+    if (!m.length) return groupTargetPos[label] ?? { x: CX, y: CY };
+    const s = m.reduce((a, nd) => ({ x: a.x + pos[nd.id].x, y: a.y + pos[nd.id].y }), { x: 0, y: 0 });
     return { x: s.x / m.length, y: s.y / m.length };
   }
 
   for (let step = 0; step < STEPS; step++) {
-    const cool = 1 - step / STEPS;
+    const cool       = 1 - step / STEPS;
+    const anchorStr  = ANCHOR * (1 + cool);   // stronger anchor early, relaxes as it cools
+    const angStr     = ANG_ANCHOR * (1 + cool * 0.5);
+    const _rScale    = n <= 6 ? 0.65 : 1;
+
     nodes.forEach(a => {
       let fx = 0, fy = 0;
       const pa = pos[a.id];
-      const _rScale = nodes.length <= 6 ? 0.65 : 1;
       const rA = Math.max(16, Math.min(30, 11 + Math.log1p(a.deg) * 3.0)) * _rScale;
+
+      // Repulsion from all other nodes
       nodes.forEach(b => {
         if (b.id === a.id) return;
         const rB    = Math.max(16, Math.min(30, 11 + Math.log1p(b.deg) * 3.0)) * _rScale;
@@ -224,24 +260,40 @@ function forceLayout(nodes: Node[], edges: Edge[], cacheKey: string): Record<str
         const force = REPEL / (d * d) + Math.max(0, (rA + rB) * 2.4 - d) * 14;
         fx += force * (dx / d); fy += force * (dy / d);
       });
-      const dx = pa.x - CX, dy = pa.y - CY;
-      const dist  = Math.sqrt(dx * dx + dy * dy) + 0.01;
+
+      // Radial spring — keep node near its target radius
+      const dx   = pa.x - CX, dy = pa.y - CY;
+      const dist = Math.sqrt(dx * dx + dy * dy) + 0.01;
       const delta = dist - targetR[a.id];
       fx -= RADIAL_SPRING * delta * (dx / dist);
       fy -= RADIAL_SPRING * delta * (dy / dist);
+
+      // Edge attraction
       (adj[a.id] || []).forEach(bid => {
         if (pos[bid]) { fx += ATTRACT * (pos[bid].x - pa.x); fy += ATTRACT * (pos[bid].y - pa.y); }
       });
-      const gc = centroid(primaryGroup(a.groupMatches).key);
-      fx += ANCHOR * (gc.x - pa.x); fy += ANCHOR * (gc.y - pa.y);
-      vel[a.id].x = Math.max(-MAX_VEL, Math.min(MAX_VEL, (vel[a.id].x + fx) * 0.54));
-      vel[a.id].y = Math.max(-MAX_VEL, Math.min(MAX_VEL, (vel[a.id].y + fy) * 0.54));
+
+      // Group centroid anchor — pulls toward average position of same-group nodes
+      const gLabel = primaryGroup(a.groupMatches).label;
+      const gc     = centroid(gLabel);
+      fx += anchorStr * (gc.x - pa.x);
+      fy += anchorStr * (gc.y - pa.y);
+
+      // Angular anchor — pulls toward the group's fixed angular target position
+      const gt = groupTargetPos[gLabel] ?? { x: CX, y: CY };
+      fx += angStr * (gt.x - pa.x);
+      fy += angStr * (gt.y - pa.y);
+
+      vel[a.id].x = Math.max(-MAX_VEL, Math.min(MAX_VEL, (vel[a.id].x + fx) * 0.52));
+      vel[a.id].y = Math.max(-MAX_VEL, Math.min(MAX_VEL, (vel[a.id].y + fy) * 0.52));
     });
-    nodes.forEach(n => {
-      pos[n.id].x = Math.max(40, Math.min(W - 40, pos[n.id].x + vel[n.id].x * cool));
-      pos[n.id].y = Math.max(40, Math.min(H - 60, pos[n.id].y + vel[n.id].y * cool));
+
+    nodes.forEach(nd => {
+      pos[nd.id].x = Math.max(40, Math.min(W - 40, pos[nd.id].x + vel[nd.id].x * cool));
+      pos[nd.id].y = Math.max(40, Math.min(H - 60, pos[nd.id].y + vel[nd.id].y * cool));
     });
   }
+
   _layoutCache[cacheKey] = pos;
   return pos;
 }
@@ -314,10 +366,10 @@ interface TooltipState {
 }
 function EgoTooltip({ tt }: { tt: TooltipState }) {
   if (!tt.visible || !tt.node) return null;
-  const n    = tt.node;
-  const name = specName(n);
-  const g0   = primaryGroup(n.groupMatches);
-  const real = n.groupMatches.filter(g => g.label !== "Other");
+  const n       = tt.node;
+  const specialty = specName(n);          // actual specialty name
+  const g0      = primaryGroup(n.groupMatches);
+  const real    = n.groupMatches.filter(g => g.label !== "Other");
   return (
     <div style={{
       position: "fixed", left: tt.x, top: tt.y,
@@ -327,19 +379,24 @@ function EgoTooltip({ tt }: { tt: TooltipState }) {
       boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
       fontFamily: FONT,
     }}>
+      {/* Title = L1 group name */}
       <div style={{ fontSize: 15, fontWeight: 800, color: g0.color,
-        marginBottom: 10, paddingBottom: 9, borderBottom: "1px solid #1e293b",
-        wordBreak: "break-all", lineHeight: 1.3 }}>{name}</div>
+        marginBottom: 6, paddingBottom: 6, borderBottom: "1px solid #1e293b",
+        wordBreak: "break-all", lineHeight: 1.3 }}>{g0.label}</div>
+      {/* Specialty detail */}
+      <div style={{ fontSize: 11, color: "#334155", marginBottom: 8, fontFamily: FONT }}>
+        {specialty}
+      </div>
       <div style={{ marginBottom: 8, lineHeight: 1.8, display: "flex", flexWrap: "wrap", gap: 4 }}>
-        {real.length > 0
+        {real.length > 1
           ? real.map(g => (
               <span key={g.label} style={{
-                display: "inline-flex", alignItems: "center", padding: "4px 10px",
+                display: "inline-flex", alignItems: "center", padding: "3px 8px",
                 borderRadius: 6, background: g.color + "20", color: g.color,
-                fontSize: 12, fontWeight: 700, border: `1px solid ${g.color}44`,
+                fontSize: 11, fontWeight: 700, border: `1px solid ${g.color}44`,
               }}>{g.label}</span>
             ))
-          : <span style={{ color: "#475569", fontSize: 11 }}>Unclassified</span>}
+          : null}
       </div>
       {tt.isCumulative && n.weekCount
         ? <div style={{ marginTop: 6, color: "#0891b2", fontSize: 11, fontWeight: 700 }}>
@@ -348,7 +405,6 @@ function EgoTooltip({ tt }: { tt: TooltipState }) {
         : <div style={{ color: "#64748b", fontSize: 11, marginTop: 4 }}>
             <strong style={{ color: g0.color }}>{n.deg}</strong> co-care connections this week
           </div>}
-      {n.ptype && <div style={{ color: "#475569", fontSize: 10, marginTop: 4 }}>{n.ptype}</div>}
       <div style={{ marginTop: 9, paddingTop: 7, borderTop: "1px solid #1e293b",
         fontSize: 10, color: "#334155" }}>Click to highlight connections</div>
     </div>
@@ -437,7 +493,8 @@ function NetworkSVG({ nodes, edges, cacheKey, isCumulative, maxEdgeFreq, selecte
         const nx = pos[n.id]?.x ?? CX;
         const ny = pos[n.id]?.y ?? CY;
         const g0 = primaryGroup(n.groupMatches);
-        const name = specName(n);
+        const name = specName(n);           // actual specialty — used for selection/tracing
+        const displayLabel = name;          // show on node
         const isSel = selectedHCP === name;
 
         let r: number;
@@ -452,6 +509,14 @@ function NetworkSVG({ nodes, edges, cacheKey, isCumulative, maxEdgeFreq, selecte
         const nodeOpacity = selectedHCP ? (isSel ? 1 : 0.08) : 1;
         const subLabel    = isCumulative ? `${n.weekCount ?? "?"}wk` : `deg ${n.deg}`;
 
+        // Build specialty label text — wrap into 2 lines if long
+        const words = displayLabel.split(/[\s/]+/).filter(Boolean);
+        const mid   = Math.ceil(words.length / 2);
+        const line1 = words.slice(0, mid).join(" ");
+        const line2 = words.slice(mid).join(" ");
+        const fs    = Math.max(5.5, Math.min(8, r * 0.28));
+        const lh    = fs + 1.6;
+
         return (
           <g key={n.id}
             style={{ cursor: "pointer", opacity: nodeOpacity }}
@@ -463,7 +528,20 @@ function NetworkSVG({ nodes, edges, cacheKey, isCumulative, maxEdgeFreq, selecte
             {isSel && <circle cx={nx} cy={ny} r={r + 9} fill="none"
               stroke={g0.color} strokeWidth={2.5} strokeDasharray="5 3"/>}
             {buildCircleJSX(nx, ny, r, n.groupMatches)}
-            {buildLabelJSX(nx, ny, r, n.groupMatches)}
+            {/* Specialty name label on node */}
+            {line2
+              ? <>
+                  <text x={nx} y={ny - lh * 0.5} textAnchor="middle" dominantBaseline="middle"
+                    fontSize={fs} fill="black" stroke="white" strokeWidth={2} paintOrder="stroke"
+                    fontWeight={700} fontFamily={FONT} pointerEvents="none">{line1}</text>
+                  <text x={nx} y={ny + lh * 0.5} textAnchor="middle" dominantBaseline="middle"
+                    fontSize={fs} fill="black" stroke="white" strokeWidth={2} paintOrder="stroke"
+                    fontWeight={700} fontFamily={FONT} pointerEvents="none">{line2}</text>
+                </>
+              : <text x={nx} y={ny} textAnchor="middle" dominantBaseline="middle"
+                  fontSize={fs} fill="black" stroke="white" strokeWidth={2} paintOrder="stroke"
+                  fontWeight={700} fontFamily={FONT} pointerEvents="none">{line1}</text>
+            }
             <text x={nx} y={ny + r + 11} textAnchor="middle"
               fontSize={7} fill={g0.color} fontFamily={FONT} fontWeight={600} pointerEvents="none">
               {subLabel}

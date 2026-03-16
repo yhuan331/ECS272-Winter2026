@@ -859,12 +859,12 @@ export default function App(){
   };
 
   if(!ready) return(
-    <div style={{width:"100%",height:"100vh",background:"#0F172A",display:"flex",
+    <div style={{width:"100%",height:"100vh",background:"#e5e5e5",display:"flex",
       flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
       <div style={{color:"white",fontFamily:FONT,fontSize:20,fontWeight:800,letterSpacing:3}}>
-        ONCO<span style={{color:"#60A5FA"}}>NET</span>
+   
       </div>
-      <div style={{color:"#475569",fontFamily:FONT,fontSize:11,letterSpacing:2}}>LOADING PATIENT DATA…</div>
+      <div style={{color:"#28313c",fontFamily:FONT,fontSize:11,letterSpacing:2}}>LOADING PATIENT DATA…</div>
     </div>
   );
 
