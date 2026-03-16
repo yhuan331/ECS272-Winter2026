@@ -95,6 +95,7 @@ export function RadialGlyph({
   }, [modeProp]);
 
   const mode: ViewMode = modeProp ?? localMode;
+  const showSurgeonTicks = false; // Temporary toggle to hide yellow surgeon markers
   const svgRef = useRef<SVGSVGElement>(null);
 
   const handleSetMode = (m: ViewMode) => {
@@ -467,7 +468,7 @@ export function RadialGlyph({
           </>}
 
           {/* Surgeon event dots */}
-          {surgeonEvents.map(weekNum => {
+          {showSurgeonTicks && surgeonEvents.map(weekNum => {
             const idx = weeklyData.findIndex(w => w.week === weekNum);
             if (idx < 0) return null;
             const d    = weeklyData[idx];

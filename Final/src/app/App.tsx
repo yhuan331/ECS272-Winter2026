@@ -455,6 +455,7 @@ interface CGProps{weeklySnap:WeekData[];surgeonSnap:number[];totalHCP:number;
   mode:ViewMode;}
 function CompareGlyph({weeklySnap,surgeonSnap,totalHCP,selectedWeek,onSelectWeek,mode}:CGProps){
   const [hovIdx,setHovIdx]=useS<number|null>(null);
+  const showSurgeonTicks = false; // Temporary toggle to hide yellow surgeon markers
   const svgRef=useR<SVGSVGElement>(null);
   const CX=350,CY=280,BASE_R=130,CENTER_R=110,SIZE=700;
   const accent="#6B46C1";
@@ -562,7 +563,7 @@ function CompareGlyph({weeklySnap,surgeonSnap,totalHCP,selectedWeek,onSelectWeek
             <line x1={s.x} y1={s.y} x2={l.x} y2={l.y} stroke="#CBD5E1" strokeWidth={1} strokeDasharray="4,4"/>
             <text x={l.x} y={l.y} textAnchor="middle" fill="#94A3B8" fontSize={10} fontFamily={FONT} dominantBaseline="central">last w{n-1}</text>
           </g>);})()}
-          {surgeonSnap.map(wn=>{
+          {showSurgeonTicks && surgeonSnap.map(wn=>{
             const idx=weeklySnap.findIndex(w=>w.week===wn);if(idx<0)return null;
             const d=weeklySnap[idx];
             const h=mode==="prob"?10+((d.riskScore-minP)/pRng)*95:10+(Math.abs(d.probDelta)/maxD)*95;
