@@ -230,6 +230,12 @@ export function ScatterPlot({
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
         onContextMenu={e => e.preventDefault()}
+        onClick={e => {
+          // Click on empty space (not a dot) → deselect
+          if (!(e.target as Element).closest("[data-dot]") && selectedId) {
+            onSelectPatient(selectedId);
+          }
+        }}
       >
         <defs>
           <clipPath id="plotClip">
