@@ -334,7 +334,7 @@ function buildPatients(
 // ─────────────────────────────────────────────
 
 async function fetchJSON(path: string): Promise<unknown> {
-  const res = await fetch(path);
+  const res  = await fetch(path);
   if (!res.ok) throw new Error(`fetchJSON ${path} → HTTP ${res.status}`);
   const text = await res.text();
   const clean = text
@@ -383,14 +383,16 @@ export async function initRealData(
   for (const [pid, rec] of Object.entries(egoMap)) {
     const embedded = (rec as EgoRecord & { weeklySnapshots?: EgoNetworkRecord["weeklySnapshots"] }).weeklySnapshots;
     if (embedded) {
+      // New unified format — weeklySnapshots already in main export
       egoNetwork[pid] = {
         patientNodeId: pid,
-        cancer:        rec.cohort ?? "",
-        stage:         "",
-        vital_status:  "",
+        cancer: rec.cohort ?? "",
+        stage: "",
+        vital_status: "",
         weeklySnapshots: embedded,
       };
     } else if (egoNetRaw[pid]) {
+      // Fallback: separate ego_network.json
       egoNetwork[pid] = egoNetRaw[pid];
     }
   }
@@ -528,23 +530,25 @@ export type HCPLevel1 =
   | "Radiation Oncology" | "Radiology" | "Scribe" | "Specialty Other"
   | "Surgery Other" | "Surgical Oncology" | "Therapy" | "Urgent Care" | "Other";
 
-// ── Canonical group definitions — strictly from the Level 1 taxonomy document ──
-// Terms are matched in priority order: (i) PROV_SPECIALTY, (ii) CLINICIAN_TITLE, (iii) PROV_TYPE
-// A single HCP can belong to MULTIPLE groups (split-color rendering like EgoNetwork nodes)
-const CANON_GROUPS: Array<{ label: HCPLevel1; terms: string[] }> = [
-  { label: "Ancillary",
-    terms: ["acupuncture","audiologist","chaplain","clinical research coordinator","cpt","health coach","home health aide","technician","tech","audiology","health educator","sonographer","spiritual care"] },
-  { label: "Dietary",
-    terms: ["dietetic asst","dietetic intern","dietician","nutrition","rd","registered dietician","registered dietitian"] },
-  { label: "Emergency Medicine",
+// ── Canonical group definitions — SINGLE SOURCE OF TRUTH for all components ──
+// Used by: realdata.ts (classifyHCP), Egonetwork.tsx (LEVEL1_GROUPS), App.tsx (surrogate grouping)
+// Terms matched in priority: (i) PROV_SPECIALTY (ii) CLINICIAN_TITLE (iii) PROV_TYPE
+export const CANON_GROUPS: Array<{ label: HCPLevel1; terms: string[]; color: string; angle: number }> = [
+  { label: "Ancillary",          color: "#7B8CDE", angle: -150,
+    // NOTE: "tech" removed — too broad, matches pharm tech / rad tech / surg tech / psych tech
+    // Use "technician" only (full word) to avoid false positives
+    terms: ["acupuncture","audiologist","chaplain","clinical research coordinator","cpt","health coach","home health aide","technician","audiology","health educator","sonographer","spiritual care"] },
+  { label: "Dietary",            color: "#56C596", angle: 150,
+    terms: ["dietetic asst","dietetic intern","dietician","nutrition","rd","registered dietician","registered dietitian", "dietitian"] },
+  { label: "Emergency Medicine", color: "#e07b39", angle: -120,
     terms: ["emergency medicine","geriatric emergency medicine","pediatric emergency"] },
-  { label: "Family Practice",
+  { label: "Family Practice",    color: "#F4A261", angle: 90,
     terms: ["family practice"] },
-  { label: "General Practice",
+  { label: "General Practice",   color: "#E9C46A", angle: 75,
     terms: ["general practice","gen prevent med","preventative medicine","preventive medicine"] },
-  { label: "Internal Medicine",
+  { label: "Internal Medicine",  color: "#2A9D8F", angle: 60,
     terms: ["geriatric med, int","hospitalist","internal medicine","geriatric medicine","medicine","internal med"] },
-  { label: "Int. Med. Specialty",
+  { label: "Int. Med. Specialty", color: "#1a47c8", angle: 30,
     terms: [
       "allergy","allergist","allergist/immunology","immunology","cardiology","cardiovascular dis",
       "critical care med","endocrinology/metabo","endocrinology","gastroenterology","hematology",
@@ -553,17 +557,17 @@ const CANON_GROUPS: Array<{ label: HCPLevel1; terms: string[] }> = [
       "adult congenital heart","cardiac electrophysiology","critical care",
       "heart failure","hepatology","crit care med, anes",
     ] },
-  { label: "Medical Oncology",
+  { label: "Medical Oncology",   color: "#be185d", angle: -90,
     terms: ["hematology/oncology","hospice","medical oncology","oncology, int","palliative medicine","bone marrow transplant","neuro oncology","oncology"] },
-  { label: "Mental Health",
-    terms: ["addiction psych","child/adolescent psy","clinic psychologist","internal medicine/psy","internal med/psy","psychiatry","psychology","psych tech","psychology intern","psychology trainee","marriage and family therapist","neuropsychology","cln neurophysiology"] },
-  { label: "Nursing",
+  { label: "Mental Health",      color: "#d97706", angle: -150,
+    terms: ["addiction psych","child/adolescent psy","clinic psychologist","internal medicine/psy","internal med/psy","psychiatry","psychology","psych tech","psychology intern","psychology trainee","marriage and family therapist","neuropsychology"] },
+  { label: "Nursing",            color: "#0891b2", angle: 150,
     terms: [
       "husc","registered nurse","rn","lvn","lpn","mosc","nurse practitioner","np","nursing",
       "physician assistant","pa","unit service coordinator","transition nurse specialist","pa/np",
       "nurse clinical specialist","nurse: rn or lvn","nurse: clinical specialist","ma",
     ] },
-  { label: "Pathology",
+  { label: "Pathology",          color: "#6D6875", angle: 180,
     terms: [
       "clinical laboratory scientist","ct (ascp)","cytotech","anatomic pathology","anatomic/cln path",
       "blood banking","clinical pathology","cytopathology","cytotechnologist","dermatopathology,der",
@@ -571,23 +575,25 @@ const CANON_GROUPS: Array<{ label: HCPLevel1; terms: string[] }> = [
       "hematopathology","lab tech","pathology","pathology molecular genetic","pa(ascp)",
       "pathologists assistant","sct (ascp)",
     ] },
-  { label: "Patient Support",
+  { label: "Patient Support",    color: "#92400e", angle: 210,
     terms: [
       "case manager","case manager assistant","health services navigator","dc plng/case mgmt",
       "licensed clinical social worker","lcsw","msw","patient navigator","social worker",
       "social work intern","care coordinator","care management associate",
     ] },
-  { label: "Pediatrics",
+  { label: "Pediatrics",         color: "#FF9F1C", angle: 45,
     terms: ["pediatrics","neo/perinatal med","pediatrics/allergy","pediatric hematology","ped infectious dis","neonatology","pediatric dermatology","pediatric neurology","pediatric cardiology","pediatric emergency"] },
-  { label: "Pharmacy",
-    terms: ["pharm intern","pharm resident","pharm tech","pharmacist","pharmd","rph","pharmacy intern","pharmacy resident","pharmacy tech","pharmacy"] },
-  { label: "Radiation Oncology",
+  { label: "Pharmacy",           color: "#2EC4B6", angle: 120,
+    // pharm tech / pharm intern / pharm resident strictly belong here per document #14
+    terms: ["pharm intern","pharm resident","pharm tech","pharmacist","pharmd","rph",
+            "pharmacy intern","pharmacy resident","pharmacy tech","pharmacy"] },
+  { label: "Radiation Oncology", color: "#CB4335", angle: -80,
     terms: ["radiation oncology","radiation therapy"] },
-  { label: "Radiology",
-    terms: ["diagnostic radiology","nuclear medicine","nuclear radiology","neuroradiology","radiology","radiology/pediatrics","rad tech","vasc/intrvn radiolog","vasc/intrvn radiology","interventional radiology","specialty vascular and interventional radiology"] },
-  { label: "Scribe",
+  { label: "Radiology",          color: "#0284c7", angle: 180,
+    terms: ["diagnostic radiology","nuclear medicine","nuclear radiology","neuroradiology","radiology","radiology/pediatrics","rad tech","radiology tech","vasc/intrvn radiolog","vasc/intrvn radiology","interventional radiology","specialty vascular and interventional radiology"] },
+  { label: "Scribe",             color: "#AAB7B8", angle: -170,
     terms: ["scribe"] },
-  { label: "Specialty Other",
+  { label: "Specialty Other",    color: "#D4AC0D", angle: -30,
     terms: [
       "certified nurse midwife","dental asst","dentist","dermatology","geneticist","genetic counselor",
       "maternal/fetal med","med geneticist","neurology","ob/gyn","obstetrics","obstetrics/gyn",
@@ -598,8 +604,9 @@ const CANON_GROUPS: Array<{ label: HCPLevel1; terms: string[] }> = [
       "micrographic dermatologic surgery","osteopathic manipulative medicine",
       "physical medicine and rehab","podiatry","reproductive endocrinology",
       "no/unknown physician specialty","verbal order signer","other",
+      "cln neurophysiology",  // per document: Specialty Other #18
     ] },
-  { label: "Surgery Other",
+  { label: "Surgery Other",      color: "#884EA0", angle: -45,
     terms: [
       "bariatric surgery","female pelvic medicine","gen vascular surg","hand surg, plast sur",
       "hand surg, ortho","hand surgery, ortho","hand surgery, otho","laryngology","ophthalmology",
@@ -609,7 +616,7 @@ const CANON_GROUPS: Array<{ label: HCPLevel1; terms: string[] }> = [
       "general trauma surgery","head and neck surgery","optometry","orthopaedic tech",
       "vascular surgery","transplant assistant","orthopaedics, spine","ortho spine",
     ] },
-  { label: "Surgical Oncology",
+  { label: "Surgical Oncology",  color: "#7c3aed", angle: -30,
     terms: [
       "adult reconstructive surgery","anesthesiologist","anesthesiologists","anesthesiology",
       "cardiothoracic surg","colon/rectal surg","colon and rectal surgery","crit care med, anes",
@@ -619,13 +626,16 @@ const CANON_GROUPS: Array<{ label: HCPLevel1; terms: string[] }> = [
       "surgery/neurologic","surgery/oncology","surg tech","thoracic surg","thoracic surgery",
       "urology","cardiac surgery","neurosurgery","general surgery",
     ] },
-  { label: "Therapy",
+  { label: "Therapy",            color: "#1ABC9C", angle: 135,
     terms: [
-      "child life","occupational therap","occ therap","respiratory therap","speech pathology",
-      "slp","speech pathologist","massage therapy","pulmonary tech","speech therapy","orthoptist",
-      "physical therapy assistant","physical therap","pt assist",
+      "child life",
+      "occupational therapist","occupational therapy","occ therap","occupational therap",
+      "physical therapist","physical therapy","physical therap","pt assist","physical therapy assistant",
+      "respiratory therapist","respiratory therapy","respiratory therap",
+      "speech pathology","speech pathologist","speech therapist","speech therapy","slp",
+      "massage therapy","pulmonary tech","orthoptist",
     ] },
-  { label: "Urgent Care",
+  { label: "Urgent Care",        color: "#f97316", angle: -110,
     terms: ["urgent care"] },
 ];
 
@@ -645,23 +655,45 @@ const CANON_NORM = CANON_GROUPS.map(g => ({
   termsNorm: g.terms.map(t => normHCP(t)),
 }));
 
-// Returns ALL matching groups (can be 2+ for split-color nodes, like EgoNetwork)
+// Returns ALL matching groups with STRICT PRIORITY per document:
+// (i) PROV_SPECIALTY first — if it matches anything, return only those matches
+// (ii) CLINICIAN_TITLE — only if specialty gave nothing
+// (iii) PROV_TYPE — only if both specialty and title gave nothing
+// This prevents e.g. specialty=SURGERY + ptype=NURSE both matching,
+// which would wrongly put a surgeon under Nursing
 export function classifyHCPMulti(specialty: string, providerType: string, clinicianTitle: string): HCPLevel1[] {
   const specField  = normHCP(specialty);
   const titleField = normHCP(clinicianTitle);
   const typeField  = normHCP(providerType);
 
-  const matches = new Set<HCPLevel1>();
-
-  // Priority order: (i) specialty, (ii) clinician title, (iii) prov type
-  for (const { label, termsNorm } of CANON_NORM) {
-    if (termsNorm.some(tn => hasPhrase(specField, tn)))  matches.add(label);
-    if (termsNorm.some(tn => hasPhrase(titleField, tn))) matches.add(label);
-    if (termsNorm.some(tn => hasPhrase(typeField, tn)))  matches.add(label);
+  // Step 1: try specialty field
+  if (specField) {
+    const specMatches = new Set<HCPLevel1>();
+    for (const { label, termsNorm } of CANON_NORM) {
+      if (termsNorm.some(tn => hasPhrase(specField, tn))) specMatches.add(label);
+    }
+    if (specMatches.size > 0) return [...specMatches];
   }
 
-  const result = [...matches];
-  return result.length > 0 ? result : ["Other"];
+  // Step 2: try clinician title (specialty gave nothing)
+  if (titleField) {
+    const titleMatches = new Set<HCPLevel1>();
+    for (const { label, termsNorm } of CANON_NORM) {
+      if (termsNorm.some(tn => hasPhrase(titleField, tn))) titleMatches.add(label);
+    }
+    if (titleMatches.size > 0) return [...titleMatches];
+  }
+
+  // Step 3: try provider type (both above gave nothing)
+  if (typeField) {
+    const typeMatches = new Set<HCPLevel1>();
+    for (const { label, termsNorm } of CANON_NORM) {
+      if (termsNorm.some(tn => hasPhrase(typeField, tn))) typeMatches.add(label);
+    }
+    if (typeMatches.size > 0) return [...typeMatches];
+  }
+
+  return ["Other"];
 }
 
 // Single-label version for backward compat (returns primary/first match)

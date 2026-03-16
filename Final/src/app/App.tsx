@@ -11,7 +11,7 @@ import {
   getPatientSurrogateRanking, computePerturbedRisk,
 } from "./realData";
 import type { PatientDot, WeekData, SurrogateFeature } from "./realData";
-import { classifyHCP, classifyHCPMulti } from "./realData";
+import { classifyHCP, classifyHCPMulti, CANON_GROUPS } from "./realData";
 import { T, CANCER_COLORS, SPECIALTY_COLORS } from "./theme";
 
 let _temporal: Record<string,unknown> = {};
@@ -227,43 +227,9 @@ function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}
           Features active this week · bar = |contribution| this week · red raises risk · green protective
         </div>
         {(()=>{
-          // ── L1 taxonomy — exactly mirrors realdata.ts CANON_GROUPS ─────────
-          // Each entry has label + terms (normalized). A feature can match MULTIPLE groups.
-          const L1_COLORS_LOCAL: Record<string,string> = {
-            "Ancillary":"#7B8CDE","Dietary":"#56C596","Emergency Medicine":"#e07b39",
-            "Family Practice":"#F4A261","General Practice":"#E9C46A","Internal Medicine":"#2A9D8F",
-            "Int. Med. Specialty":"#1a47c8","Medical Oncology":"#be185d","Mental Health":"#d97706",
-            "Nursing":"#0891b2","Pathology":"#6D6875","Patient Support":"#92400e",
-            "Pediatrics":"#FF9F1C","Pharmacy":"#2EC4B6","Radiation Oncology":"#CB4335",
-            "Radiology":"#0284c7","Scribe":"#AAB7B8","Specialty Other":"#D4AC0D",
-            "Surgery Other":"#884EA0","Surgical Oncology":"#7c3aed","Therapy":"#1ABC9C",
-            "Urgent Care":"#f97316","Other":"#94a3b8",
-          };
-
-          const CANON: Array<{ label: string; terms: string[] }> = [
-            { label:"Ancillary",         terms:["acupuncture","audiologist","chaplain","clinical research coordinator","cpt","health coach","home health aide","technician","tech","audiology","health educator","sonographer","spiritual care"] },
-            { label:"Dietary",           terms:["dietetic asst","dietetic intern","dietician","nutrition","rd","registered dietician","registered dietitian"] },
-            { label:"Emergency Medicine",terms:["emergency medicine","geriatric emergency medicine","pediatric emergency"] },
-            { label:"Family Practice",   terms:["family practice"] },
-            { label:"General Practice",  terms:["general practice","gen prevent med","preventative medicine","preventive medicine"] },
-            { label:"Internal Medicine", terms:["geriatric med, int","hospitalist","internal medicine","geriatric medicine","medicine","internal med"] },
-            { label:"Int. Med. Specialty",terms:["allergy","allergist","allergist/immunology","immunology","cardiology","cardiovascular dis","critical care med","endocrinology/metabo","endocrinology","gastroenterology","hematology","infectious disease","infectious diseases","interventional cardiology","nephrology","pulmonary disease","pulmonary medicine","rheumatology","adult congenital heart","cardiac electrophysiology","critical care","heart failure","hepatology","crit care med, anes"] },
-            { label:"Medical Oncology",  terms:["hematology/oncology","hospice","medical oncology","oncology, int","palliative medicine","bone marrow transplant","neuro oncology","oncology"] },
-            { label:"Mental Health",     terms:["addiction psych","child/adolescent psy","clinic psychologist","internal medicine/psy","internal med/psy","psychiatry","psychology","psych tech","psychology intern","psychology trainee","marriage and family therapist","neuropsychology","cln neurophysiology"] },
-            { label:"Nursing",           terms:["husc","registered nurse","rn","lvn","lpn","mosc","nurse practitioner","np","nursing","physician assistant","pa","unit service coordinator","transition nurse specialist","pa/np","nurse clinical specialist","nurse: rn or lvn","nurse: clinical specialist","ma"] },
-            { label:"Pathology",         terms:["clinical laboratory scientist","cytotech","anatomic pathology","anatomic/cln path","blood banking","clinical pathology","cytopathology","cytotechnologist","dermatopathology,der","dermatopathology","gross assistant","histotech","hospital laboratory technician","hlt","hcla","hematopathology","lab tech","pathology","pathology molecular genetic","pathologists assistant","sct"] },
-            { label:"Patient Support",   terms:["case manager","case manager assistant","health services navigator","dc plng/case mgmt","licensed clinical social worker","lcsw","msw","patient navigator","social worker","social work intern","care coordinator","care management associate"] },
-            { label:"Pediatrics",        terms:["pediatrics","neo/perinatal med","pediatrics/allergy","pediatric hematology","ped infectious dis","neonatology","pediatric dermatology","pediatric neurology","pediatric cardiology","pediatric emergency"] },
-            { label:"Pharmacy",          terms:["pharm intern","pharm resident","pharm tech","pharmacist","pharmd","rph","pharmacy intern","pharmacy resident","pharmacy tech","pharmacy"] },
-            { label:"Radiation Oncology",terms:["radiation oncology","radiation therapy"] },
-            { label:"Radiology",         terms:["diagnostic radiology","nuclear medicine","nuclear radiology","neuroradiology","radiology","radiology/pediatrics","rad tech","vasc/intrvn radiolog","interventional radiology"] },
-            { label:"Scribe",            terms:["scribe"] },
-            { label:"Specialty Other",   terms:["certified nurse midwife","dental asst","dentist","dermatology","geneticist","genetic counselor","maternal/fetal med","med geneticist","neurology","ob/gyn","obstetrics","obstetrics/gyn","other m.d.","pain management","pain medicine","pmr","podiatrist","sleep medicine","sports medicine","vascular med","vascular medicine","vascular neurology","athletic training","epileptologist","gynecology","hyperbaric medicine","hyperbaric technician","interventional pain management","maternal and fetal medicine","medical genetics","micrographic dermatologic surgery","osteopathic manipulative medicine","physical medicine and rehab","podiatry","reproductive endocrinology","no/unknown physician specialty","verbal order signer","other"] },
-            { label:"Surgery Other",     terms:["bariatric surgery","female pelvic medicine","gen vascular surg","hand surg, plast sur","hand surg, ortho","hand surgery, ortho","hand surgery, otho","laryngology","ophthalmology","optometrist","ortho tech","ortho - foot and ankle","orthopaedics-foot and ankle","orthopaedics sports","ortho trauma","orthopaedic trauma","orthotist","otolaryngology","prosthetics/orthotics","transplant","transplant surgery","surgery trauma","trauma acs","general trauma surgery","head and neck surgery","optometry","orthopaedic tech","vascular surgery","transplant assistant","orthopaedics, spine","ortho spine"] },
-            { label:"Surgical Oncology", terms:["adult reconstructive surgery","anesthesiologist","anesthesiologists","anesthesiology","cardiothoracic surg","colon/rectal surg","colon and rectal surgery","gynecologic oncology","gyn oncology","nurse anesthes","certified registered nurse anesthes","orthopaedic oncology","orthopaedic surgery","orthopedics","plastic surgery","surgery","surg/cardiovascular","surgery crit care","surg/neur crit care","surgery/neurologic","surgery/oncology","surg tech","thoracic surg","thoracic surgery","urology","cardiac surgery","neurosurgery","general surgery"] },
-            { label:"Therapy",           terms:["child life","occupational therap","occ therap","respiratory therap","speech pathology","slp","speech pathologist","massage therapy","pulmonary tech","speech therapy","orthoptist","physical therapy assistant","physical therap","pt assist"] },
-            { label:"Urgent Care",       terms:["urgent care"] },
-          ];
+          // ── Use single source of truth from realdata.ts + theme.ts ──────────
+          const L1_COLORS_LOCAL = SPECIALTY_COLORS;
+          const CANON = CANON_GROUPS;
 
           // Pre-normalize
           function normS(s: string) {
