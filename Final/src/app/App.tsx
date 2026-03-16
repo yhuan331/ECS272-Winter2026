@@ -696,9 +696,9 @@ export default function App(){
   const [view,           setView]           = useState<"overview"|"compare"|"whatif">("overview");
 
   useEffect(()=>{
-    initRealData("/temporal_networks.json","/full_va_export_with_linear.json","/ego_network.json").then(()=>{
+    initRealData("/temporal_networks.json","/full_va_export_with_linear2.json","/ego_network.json").then(()=>{
       setReady(true);
-      Promise.all([nanSafe("/temporal_networks.json"),nanSafe("/full_va_export_with_linear.json")])
+      Promise.all([nanSafe("/temporal_networks.json"),nanSafe("/full_va_export_with_linear2.json")])
         .then(([t,e])=>{
           _temporal=t as Record<string,unknown>;
           if(Array.isArray(e)){const m:Record<string,unknown>={};for(const r of e as Array<{id:string}>) m[r.id]=r;_egoMap=m;}

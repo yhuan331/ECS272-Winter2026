@@ -339,7 +339,7 @@ async function fetchJSON(path: string): Promise<unknown> {
 
 export async function initRealData(
   temporalPath   = "/temporal_networks.json",
-  egoPath        = "/full_va_export_with_linear.json",
+  egoPath        = "/full_va_export_with_linear2.json",
   egoNetworkPath = "/ego_network.json",
   focusPatientId?: string,
 ): Promise<void> {
