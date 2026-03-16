@@ -115,7 +115,7 @@ export function HCPBarChart({ selectedWeek, data }: Props) {
                 <div style={{
                   width: 170, flexShrink: 0,
                   color: isHov ? group.color : T.textSecondary,
-                  fontSize: 10, fontWeight: isHov ? 700 : 400,
+                  fontSize: 15, fontWeight: isHov ? 700 : 400,
                   whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                   transition: "color 0.12s",
                 }}>
@@ -139,7 +139,7 @@ export function HCPBarChart({ selectedWeek, data }: Props) {
                   display: "flex", gap: 8, flexShrink: 0, alignItems: "center",
                   minWidth: 80, justifyContent: "flex-end",
                 }}>
-                  <span style={{ color: group.color, fontSize: 11, fontWeight: 700 }}>
+                  <span style={{ color: group.color, fontSize: 14, fontWeight: 700 }}>
                     {group.value}
                   </span>
                   <span style={{ color: T.textFaint, fontSize: 9 }}>
@@ -171,7 +171,7 @@ export function HCPBarChart({ selectedWeek, data }: Props) {
                       }}>
                         <div style={{
                           width: 158, flexShrink: 0,
-                          color: T.textSecondary, fontSize: 9,
+                          color: T.textSecondary, fontSize: 12,
                           whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                         }}>
                           {child.name}
@@ -182,7 +182,7 @@ export function HCPBarChart({ selectedWeek, data }: Props) {
                             background: group.color, opacity: 0.45, borderRadius: 3,
                           }} />
                         </div>
-                        <span style={{ color: group.color, fontSize: 9, minWidth: 20, textAlign: "right" }}>
+                        <span style={{ color: group.color, fontSize: 13, minWidth: 20, textAlign: "right" }}>
                           {child.value}
                         </span>
                       </div>

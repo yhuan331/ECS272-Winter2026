@@ -39,7 +39,12 @@ export function ScatterPlot({
   const plotW = W - pad.left - pad.right;
   const plotH = H - pad.top  - pad.bottom;
 
-  const DOT_RADIUS = 5;
+  const maxTeam  = Math.max(...patients.map(p => p.maxTeam), 1);
+
+  const dotRadius = (p: PatientDot, isSel: boolean, isCmp: boolean) => {
+    if (isSel || isCmp) return 7;
+    return 3 + (p.maxTeam / maxTeam) * 5;
+  };
 
   const toggle = (c: string) => onFilterChange((() => {
     const n = new Set(filters);
@@ -152,20 +157,20 @@ export function ScatterPlot({
     }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-        <div style={{ color: T.textMuted, fontSize: 10, letterSpacing: 1.5, fontWeight: 700 }}>
+        <div style={{ color: T.textMuted, fontSize: 13, letterSpacing: 1.5, fontWeight: 700 }}>
           PATIENT COHORT OVERVIEW
         </div>
         {isZoomed && (
           <span style={{
-            fontSize: 8, color: "#2B6CB0", background: "#EEF2FF",
-            padding: "2px 6px", borderRadius: 3, border: "1px solid #2B6CB044",
+            fontSize: 11, color: "#2B6CB0", background: "#EEF2FF",
+            padding: "2px 8px", borderRadius: 3, border: "1px solid #2B6CB044",
           }}>🔍 {zoomLevel}×</span>
         )}
         {isZoomed && (
           <button onClick={() => setVp(DEFAULT_VP)} style={{
-            marginLeft: "auto", fontSize: 8, fontFamily: FONT, cursor: "pointer",
+            marginLeft: "auto", fontSize: 11, fontFamily: FONT, cursor: "pointer",
             background: "transparent", border: `1px solid ${T.border}`,
-            borderRadius: 3, padding: "2px 7px", color: T.textMuted,
+            borderRadius: 3, padding: "3px 10px", color: T.textMuted,
           }}>RESET VIEW</button>
         )}
       </div>
@@ -178,10 +183,10 @@ export function ScatterPlot({
           return (
             <button key={c} onClick={() => toggle(c)} style={{
               background: active ? color + "18" : "transparent",
-              border: `1px solid ${active ? color : T.border}`,
-              borderRadius: 4, padding: "3px 10px",
+              border: `2px solid ${active ? color : T.border}`,
+              borderRadius: 5, padding: "5px 13px",
               color: active ? color : T.textMuted,
-              fontSize: 9, fontFamily: FONT, cursor: "pointer",
+              fontSize: 12, fontFamily: FONT, cursor: "pointer",
               textTransform: "uppercase", letterSpacing: 1, fontWeight: 700,
               transition: "all 0.15s",
             }}>{c}</button>
@@ -189,7 +194,7 @@ export function ScatterPlot({
         })}
 
         {/* Divider */}
-        <div style={{ width: 1, height: 14, background: T.border, margin: "0 2px" }} />
+        <div style={{ width: 1, height: 16, background: T.border, margin: "0 2px" }} />
 
         {/* Survival filter buttons */}
         {(["all", "survived", "deceased"] as const).map(opt => {
@@ -199,17 +204,17 @@ export function ScatterPlot({
           return (
             <button key={opt} onClick={() => setSurvivorFilter(opt)} style={{
               background: active ? color + "18" : "transparent",
-              border: `1px solid ${active ? color : T.border}`,
-              borderRadius: 4, padding: "3px 10px",
+              border: `2px solid ${active ? color : T.border}`,
+              borderRadius: 5, padding: "5px 13px",
               color: active ? color : T.textMuted,
-              fontSize: 9, fontFamily: FONT, cursor: "pointer",
+              fontSize: 12, fontFamily: FONT, cursor: "pointer",
               letterSpacing: 1, fontWeight: 700,
               transition: "all 0.15s",
             }}>{label}</button>
           );
         })}
 
-        <span style={{ color: T.textFaint, fontSize: 8, marginLeft: 4 }}>
+        <span style={{ color: T.textFaint, fontSize: 11, marginLeft: 4 }}>
           scroll to zoom · drag to pan · <strong style={{color:"#2B6CB0"}}>click</strong>=A · <strong style={{color:"#6B46C1"}}>right-click</strong>=B
         </span>
       </div>
@@ -268,7 +273,7 @@ export function ScatterPlot({
             const isSel  = p.id === selectedId;
             const isCmp  = p.id === compareId;
             const isHov  = p.id === hoverId;
-            const r      = DOT_RADIUS;
+            const r      = dotRadius(p, isSel, isCmp);
 
             const survivedOpacity = isSel || isCmp ? 1 : isHov ? 0.85 : 0.38;
             const deceasedOpacity = isSel || isCmp ? 1 : isHov ? 1    : 0.88;

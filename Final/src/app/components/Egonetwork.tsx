@@ -380,11 +380,11 @@ function EgoTooltip({ tt }: { tt: TooltipState }) {
       fontFamily: FONT,
     }}>
       {/* Title = L1 group name */}
-      <div style={{ fontSize: 15, fontWeight: 800, color: g0.color,
+      <div style={{ fontSize: 18, fontWeight: 800, color: g0.color,
         marginBottom: 6, paddingBottom: 6, borderBottom: "1px solid #1e293b",
         wordBreak: "break-all", lineHeight: 1.3 }}>{g0.label}</div>
       {/* Specialty detail */}
-      <div style={{ fontSize: 11, color: "#334155", marginBottom: 8, fontFamily: FONT }}>
+      <div style={{ fontSize: 13, color: "#1e293b", marginBottom: 8, fontFamily: FONT, fontWeight: 600 }}>
         {specialty}
       </div>
       <div style={{ marginBottom: 8, lineHeight: 1.8, display: "flex", flexWrap: "wrap", gap: 4 }}>
@@ -639,17 +639,17 @@ function LegendBar({ groupKeys }: { groupKeys: Set<string> }) {
 
   if (!items.length) {
     return (
-      <div style={{ color: "#94a3b8", fontSize: 10, fontFamily: FONT }}>
+      <div style={{ color: "#64748b", fontSize: 12, fontFamily: FONT, fontWeight: 600 }}>
         No specialties this week
       </div>
     );
   }
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: "5px 14px" }}>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px" }}>
       {items.map(g => (
-        <div key={g.label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10,
-          color: "#334155", fontFamily: FONT, whiteSpace: "nowrap" }}>
-          <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%",
+        <div key={g.label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12,
+          color: "#1e293b", fontFamily: FONT, whiteSpace: "nowrap", fontWeight: 600 }}>
+          <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: "50%",
             background: g.color, flexShrink: 0 }}/>
           {g.label}
         </div>
@@ -916,7 +916,7 @@ export function EgoNetwork({ patientId, accentColor = "#2B6CB0", initialWeek }: 
   const dStr = (riskDelta >= 0 ? "↑" : "↓") + Math.abs(riskDelta).toFixed(3);
 
   const btnStyle = (active: boolean) => ({
-    border: "none", borderRadius: 6, padding: "6px 16px", fontSize: 12,
+    border: "none", borderRadius: 6, padding: "7px 18px", fontSize: 13,
     fontFamily: FONT, cursor: "pointer" as const, fontWeight: 700, letterSpacing: "0.03em",
     transition: "all 0.15s",
     background: active ? "#0f172a" : "#e2e8f0",
@@ -941,12 +941,12 @@ export function EgoNetwork({ patientId, accentColor = "#2B6CB0", initialWeek }: 
             { id: "delta",      val: `GCN ${dStr}`,             label: "Risk delta",   col: dCol,       bg: "#fff7ed", bdr: "#fed7aa" },
           ].map(chip => (
             <div key={chip.id} style={{ background: chip.bg, border: `1px solid ${chip.bdr}`,
-              borderRadius: 8, padding: "3px 8px", display: "flex", flexDirection: "column",
+              borderRadius: 8, padding: "4px 10px", display: "flex", flexDirection: "column",
               alignItems: "center", flexShrink: 0 }}>
-              <span style={{ fontSize: 15, fontWeight: 800, color: chip.col,
+              <span style={{ fontSize: 17, fontWeight: 800, color: chip.col,
                 fontFamily: FONT, lineHeight: 1.1, whiteSpace: "nowrap" }}>{chip.val}</span>
-              <span style={{ fontSize: 8, color: "#64748b", fontFamily: FONT,
-                textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>{chip.label}</span>
+              <span style={{ fontSize: 10, color: "#475569", fontFamily: FONT,
+                textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap", fontWeight: 700 }}>{chip.label}</span>
             </div>
           ))}
         </div>
@@ -969,14 +969,14 @@ export function EgoNetwork({ patientId, accentColor = "#2B6CB0", initialWeek }: 
             <button
               onClick={() => { if (playing) stopPlay(); else { if (weekIdx >= allWeeks.length - 1) setWeekIdx(0); startPlay(); } }}
               style={{ border: "none", background: playing ? "#0284c7" : "#e2e8f0", borderRadius: 6,
-                padding: "3px 10px", fontSize: 12, cursor: "pointer", fontWeight: 700,
+                padding: "5px 14px", fontSize: 13, cursor: "pointer", fontWeight: 700,
                 fontFamily: FONT, color: playing ? "white" : "#1e293b" }}>
               {playing ? "⏸ Pause" : "▶ Play"}
             </button>
-            <span style={{ fontSize: 12, fontWeight: 700, color: "#1e293b", fontFamily: FONT }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: "#1e293b", fontFamily: FONT }}>
               Week {currentWeek}
             </span>
-            <span style={{ fontSize: 11, color: "#64748b", fontFamily: FONT }}>
+            <span style={{ fontSize: 13, color: "#475569", fontFamily: FONT, fontWeight: 600 }}>
               · {initCount} HCPs active
             </span>
           </div>
@@ -987,7 +987,7 @@ export function EgoNetwork({ patientId, accentColor = "#2B6CB0", initialWeek }: 
             <WeekDots allWeeks={allWeeks} activeIdx={weekIdx} snapshots={weeklySnapshots}
               onClickIdx={i => { stopPlay(); setWeekIdx(i); }}/>
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 1,
-              fontSize: 9, color: "#94a3b8", fontFamily: FONT }}>
+              fontSize: 11, color: "#64748b", fontFamily: FONT }}>
               <span>Wk 0</span><span>Wk {maxWeek}</span>
             </div>
           </div>
@@ -1004,11 +1004,11 @@ export function EgoNetwork({ patientId, accentColor = "#2B6CB0", initialWeek }: 
                 else { startCumulPlay(); }
               }}
               style={{ border: "none", background: playing ? "#7c3aed" : "#e2e8f0", borderRadius: 6,
-                padding: "3px 10px", fontSize: 12, cursor: "pointer", fontWeight: 700,
+                padding: "5px 14px", fontSize: 13, cursor: "pointer", fontWeight: 700,
                 fontFamily: FONT, color: playing ? "white" : "#1e293b" }}>
               {playing ? "⏸ Pause" : "▶ Play Growth"}
             </button>
-            <span style={{ fontSize: 11, color: "#64748b", fontFamily: FONT }}>
+            <span style={{ fontSize: 13, color: "#475569", fontFamily: FONT, fontWeight: 600 }}>
               {playing && cumulPlayIdx !== null
                 ? `Building… Week ${allWeeks[cumulPlayIdx]} / ${maxWeek} · ${renderNodes.length} HCPs`
                 : `${totalUniqueHCPs} unique HCPs · ${cumulNet.edges.length} co-care links · ${allWeeks.length} weeks`}
@@ -1016,13 +1016,12 @@ export function EgoNetwork({ patientId, accentColor = "#2B6CB0", initialWeek }: 
             {cumulPlayIdx !== null && !playing && (
               <button onClick={() => setCumulPlayIdx(null)}
                 style={{ marginLeft: "auto", border: "none", background: "#f1f5f9",
-                  borderRadius: 5, padding: "2px 8px", fontSize: 10,
-                  cursor: "pointer", fontFamily: FONT, color: "#64748b" }}>
+                  borderRadius: 5, padding: "3px 10px", fontSize: 12,
+                  cursor: "pointer", fontFamily: FONT, color: "#475569", fontWeight: 600 }}>
                 Show All
               </button>
             )}
           </div>
-          {/* Progress bar for cumulative play */}
           {cumulPlayIdx !== null && (
             <div style={{ width: "100%", height: 4, background: "#e2e8f0", borderRadius: 2, overflow: "hidden" }}>
               <div style={{
@@ -1034,7 +1033,7 @@ export function EgoNetwork({ patientId, accentColor = "#2B6CB0", initialWeek }: 
           )}
           {cumulPlayIdx === null && (
             <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0",
-              borderRadius: 8, padding: "5px 12px", fontSize: 11, color: "#14532d", fontFamily: FONT }}>
+              borderRadius: 8, padding: "6px 14px", fontSize: 13, color: "#14532d", fontFamily: FONT, fontWeight: 600 }}>
               Full accumulated network · press <strong>Play Growth</strong> to watch it build week by week
             </div>
           )}
