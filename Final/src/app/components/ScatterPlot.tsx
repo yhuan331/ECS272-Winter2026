@@ -39,12 +39,7 @@ export function ScatterPlot({
   const plotW = W - pad.left - pad.right;
   const plotH = H - pad.top  - pad.bottom;
 
-  const maxTeam  = Math.max(...patients.map(p => p.maxTeam), 1);
-
-  const dotRadius = (p: PatientDot, isSel: boolean, isCmp: boolean) => {
-    if (isSel || isCmp) return 7;
-    return 3 + (p.maxTeam / maxTeam) * 5;
-  };
+  const dotRadius = () => 5;
 
   const toggle = (c: string) => onFilterChange((() => {
     const n = new Set(filters);
@@ -279,7 +274,7 @@ export function ScatterPlot({
             const isSel  = p.id === selectedId;
             const isCmp  = p.id === compareId;
             const isHov  = p.id === hoverId;
-            const r      = dotRadius(p, isSel, isCmp);
+            const r      = dotRadius();
 
             const survivedOpacity = isSel || isCmp ? 1 : isHov ? 0.85 : 0.38;
             const deceasedOpacity = isSel || isCmp ? 1 : isHov ? 1    : 0.88;
