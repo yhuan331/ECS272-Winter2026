@@ -11,7 +11,7 @@ import {
   getPatientSurrogateRanking, computePerturbedRisk,
 } from "./realData";
 import type { PatientDot, WeekData, SurrogateFeature } from "./realData";
-import { classifyHCP } from "./realData";
+import { classifyHCP, classifyHCPMulti } from "./realData";
 import { T, CANCER_COLORS, SPECIALTY_COLORS } from "./theme";
 
 let _temporal: Record<string,unknown> = {};
@@ -150,6 +150,14 @@ function ColHeader({label,color,id,pt,avgRisk,totalHCP,numWeeks,sharedWeek,onCle
   );
 }
 function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}){
+  const [expandedSurrogateGroups, setExpandedSurrogateGroups] = useState<Set<string>>(new Set());
+  const toggleSurrogateGroup = (name: string) => {
+    setExpandedSurrogateGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name); else next.add(name);
+      return next;
+    });
+  };
   return(
     <div style={{background:"#fff",border:`2px solid ${color}33`,borderRadius:10,padding:"16px 18px"}}>
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,flexWrap:"wrap"}}>
@@ -176,11 +184,38 @@ function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}
           ACTIVE SPECIALTIES
         </div>
         <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-          {(data.hcpNames??[]).filter(n=>n&&n!=="nan"&&n!=="null"&&n!=="UNKNOWN"&&n!=="NONE").slice(0,12).map((n,i)=>(
-            <span key={i} style={{background:color+"10",border:`2px solid ${color}22`,
-              borderRadius:4,padding:"3px 9px",color,fontSize:10,fontFamily:FONT,fontWeight:700}}>{n}</span>
-          ))}
-          {(!(data.hcpNames??[]).length)&&
+          {(data.hcpSnaps?.length ? data.hcpSnaps : (data.hcpNames??[]).map(n=>({specialty:n,providerType:"",clinicianTitle:""})))
+            .filter(h=>{const v=h.specialty||h.providerType; return v&&v!=="nan"&&v!=="null"&&v!=="UNKNOWN"&&v!=="NONE";})
+            .filter((h,i,arr)=>arr.findIndex(x=>(x.specialty||x.providerType)===(h.specialty||h.providerType))===i)
+            .slice(0,16)
+            .map((h,i)=>{
+              const label = h.specialty||h.providerType;
+              const groups = classifyHCPMulti(h.specialty, h.providerType, h.clinicianTitle);
+              const g0Color = (SPECIALTY_COLORS as Record<string,string>)[groups[0]] ?? "#64748b";
+              const g1Color = groups[1] ? ((SPECIALTY_COLORS as Record<string,string>)[groups[1]] ?? null) : null;
+              return (
+                <span key={i} title={groups.join(" · ")} style={{
+                  background: g1Color
+                    ? `linear-gradient(90deg, ${g0Color}18 50%, ${g1Color}18 50%)`
+                    : `${g0Color}15`,
+                  border: g1Color
+                    ? `2px solid ${g0Color}55`
+                    : `2px solid ${g0Color}44`,
+                  borderRadius:4, padding:"3px 9px",
+                  color: g0Color,
+                  fontSize:10, fontFamily:FONT, fontWeight:700,
+                  display:"inline-flex", alignItems:"center", gap:4,
+                }}>
+                  {g1Color && (
+                    <span style={{width:6,height:6,borderRadius:"50%",flexShrink:0,
+                      background:`linear-gradient(90deg, ${g0Color} 50%, ${g1Color} 50%)`,
+                      border:"1px solid white", boxShadow:`0 0 0 1px ${g0Color}66`}}/>
+                  )}
+                  {label}
+                </span>
+              );
+            })}
+          {(!(data.hcpSnaps?.length||data.hcpNames?.length))&&
             <span style={{color:"#94A3B8",fontSize:10,fontFamily:FONT}}>No specialty data</span>}
         </div>
       </div>
@@ -192,118 +227,245 @@ function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}
           Features active this week · bar = |contribution| this week · red raises risk · green protective
         </div>
         {(()=>{
-          // ── Provider type code → human label ──────────────────────────────
-          const PROV_TYPE_LABELS: Record<string,string> = {
-            "N":"Nursing / NP", "MD":"Physician (MD)", "RN":"Registered Nurse",
-            "NP":"Nurse Practitioner", "PA":"Physician Assistant", "LVN":"LVN / LPN",
-            "DO":"Physician (DO)", "PHD":"Psychologist (PhD)", "PHARMD":"Pharmacist",
-            "RPH":"Pharmacist (RPh)", "PT":"Physical Therapist", "OT":"Occupational Therapist",
-            "SLP":"Speech-Language Pathologist", "RT":"Respiratory Therapist",
-            "RD":"Registered Dietitian", "SW":"Social Worker", "LCSW":"Social Worker (LCSW)",
-            "MSW":"Social Worker (MSW)", "TECH":"Technician", "CNA":"Nursing Assistant",
-            "MA":"Medical Assistant", "SCRIBE":"Scribe",
+          // ── L1 taxonomy — exactly mirrors realdata.ts CANON_GROUPS ─────────
+          // Each entry has label + terms (normalized). A feature can match MULTIPLE groups.
+          const L1_COLORS_LOCAL: Record<string,string> = {
+            "Ancillary":"#7B8CDE","Dietary":"#56C596","Emergency Medicine":"#e07b39",
+            "Family Practice":"#F4A261","General Practice":"#E9C46A","Internal Medicine":"#2A9D8F",
+            "Int. Med. Specialty":"#1a47c8","Medical Oncology":"#be185d","Mental Health":"#d97706",
+            "Nursing":"#0891b2","Pathology":"#6D6875","Patient Support":"#92400e",
+            "Pediatrics":"#FF9F1C","Pharmacy":"#2EC4B6","Radiation Oncology":"#CB4335",
+            "Radiology":"#0284c7","Scribe":"#AAB7B8","Specialty Other":"#D4AC0D",
+            "Surgery Other":"#884EA0","Surgical Oncology":"#7c3aed","Therapy":"#1ABC9C",
+            "Urgent Care":"#f97316","Other":"#94a3b8",
           };
 
-          // ── Decode a raw feature string into a clean display label ────────
-          function decodeFeature(feat: string): string {
-            const parts  = feat.split("::");
-            const prefix = parts[0] ?? "";
-            const value  = (parts[1] ?? "").replace(/^\*/,"").trim();
-            // Provider type: look up in label map, else humanize
-            if (prefix === "ACCESS_USER_PROV_TYPE") {
-              const upper = value.toUpperCase().replace(/[^A-Z0-9]/g," ").trim();
-              // Try exact key first
-              for (const [k,v] of Object.entries(PROV_TYPE_LABELS)) {
-                if (upper === k) return v;
-              }
-              // Strip leading dots/punctuation and title-case
-              return value.replace(/^[^a-zA-Z0-9]+/,"").replace(/_/g," ")
-                .replace(/\b\w/g,c=>c.toUpperCase()).trim() || "Provider Type";
+          const CANON: Array<{ label: string; terms: string[] }> = [
+            { label:"Ancillary",         terms:["acupuncture","audiologist","chaplain","clinical research coordinator","cpt","health coach","home health aide","technician","tech","audiology","health educator","sonographer","spiritual care"] },
+            { label:"Dietary",           terms:["dietetic asst","dietetic intern","dietician","nutrition","rd","registered dietician","registered dietitian"] },
+            { label:"Emergency Medicine",terms:["emergency medicine","geriatric emergency medicine","pediatric emergency"] },
+            { label:"Family Practice",   terms:["family practice"] },
+            { label:"General Practice",  terms:["general practice","gen prevent med","preventative medicine","preventive medicine"] },
+            { label:"Internal Medicine", terms:["geriatric med, int","hospitalist","internal medicine","geriatric medicine","medicine","internal med"] },
+            { label:"Int. Med. Specialty",terms:["allergy","allergist","allergist/immunology","immunology","cardiology","cardiovascular dis","critical care med","endocrinology/metabo","endocrinology","gastroenterology","hematology","infectious disease","infectious diseases","interventional cardiology","nephrology","pulmonary disease","pulmonary medicine","rheumatology","adult congenital heart","cardiac electrophysiology","critical care","heart failure","hepatology","crit care med, anes"] },
+            { label:"Medical Oncology",  terms:["hematology/oncology","hospice","medical oncology","oncology, int","palliative medicine","bone marrow transplant","neuro oncology","oncology"] },
+            { label:"Mental Health",     terms:["addiction psych","child/adolescent psy","clinic psychologist","internal medicine/psy","internal med/psy","psychiatry","psychology","psych tech","psychology intern","psychology trainee","marriage and family therapist","neuropsychology","cln neurophysiology"] },
+            { label:"Nursing",           terms:["husc","registered nurse","rn","lvn","lpn","mosc","nurse practitioner","np","nursing","physician assistant","pa","unit service coordinator","transition nurse specialist","pa/np","nurse clinical specialist","nurse: rn or lvn","nurse: clinical specialist","ma"] },
+            { label:"Pathology",         terms:["clinical laboratory scientist","cytotech","anatomic pathology","anatomic/cln path","blood banking","clinical pathology","cytopathology","cytotechnologist","dermatopathology,der","dermatopathology","gross assistant","histotech","hospital laboratory technician","hlt","hcla","hematopathology","lab tech","pathology","pathology molecular genetic","pathologists assistant","sct"] },
+            { label:"Patient Support",   terms:["case manager","case manager assistant","health services navigator","dc plng/case mgmt","licensed clinical social worker","lcsw","msw","patient navigator","social worker","social work intern","care coordinator","care management associate"] },
+            { label:"Pediatrics",        terms:["pediatrics","neo/perinatal med","pediatrics/allergy","pediatric hematology","ped infectious dis","neonatology","pediatric dermatology","pediatric neurology","pediatric cardiology","pediatric emergency"] },
+            { label:"Pharmacy",          terms:["pharm intern","pharm resident","pharm tech","pharmacist","pharmd","rph","pharmacy intern","pharmacy resident","pharmacy tech","pharmacy"] },
+            { label:"Radiation Oncology",terms:["radiation oncology","radiation therapy"] },
+            { label:"Radiology",         terms:["diagnostic radiology","nuclear medicine","nuclear radiology","neuroradiology","radiology","radiology/pediatrics","rad tech","vasc/intrvn radiolog","interventional radiology"] },
+            { label:"Scribe",            terms:["scribe"] },
+            { label:"Specialty Other",   terms:["certified nurse midwife","dental asst","dentist","dermatology","geneticist","genetic counselor","maternal/fetal med","med geneticist","neurology","ob/gyn","obstetrics","obstetrics/gyn","other m.d.","pain management","pain medicine","pmr","podiatrist","sleep medicine","sports medicine","vascular med","vascular medicine","vascular neurology","athletic training","epileptologist","gynecology","hyperbaric medicine","hyperbaric technician","interventional pain management","maternal and fetal medicine","medical genetics","micrographic dermatologic surgery","osteopathic manipulative medicine","physical medicine and rehab","podiatry","reproductive endocrinology","no/unknown physician specialty","verbal order signer","other"] },
+            { label:"Surgery Other",     terms:["bariatric surgery","female pelvic medicine","gen vascular surg","hand surg, plast sur","hand surg, ortho","hand surgery, ortho","hand surgery, otho","laryngology","ophthalmology","optometrist","ortho tech","ortho - foot and ankle","orthopaedics-foot and ankle","orthopaedics sports","ortho trauma","orthopaedic trauma","orthotist","otolaryngology","prosthetics/orthotics","transplant","transplant surgery","surgery trauma","trauma acs","general trauma surgery","head and neck surgery","optometry","orthopaedic tech","vascular surgery","transplant assistant","orthopaedics, spine","ortho spine"] },
+            { label:"Surgical Oncology", terms:["adult reconstructive surgery","anesthesiologist","anesthesiologists","anesthesiology","cardiothoracic surg","colon/rectal surg","colon and rectal surgery","gynecologic oncology","gyn oncology","nurse anesthes","certified registered nurse anesthes","orthopaedic oncology","orthopaedic surgery","orthopedics","plastic surgery","surgery","surg/cardiovascular","surgery crit care","surg/neur crit care","surgery/neurologic","surgery/oncology","surg tech","thoracic surg","thoracic surgery","urology","cardiac surgery","neurosurgery","general surgery"] },
+            { label:"Therapy",           terms:["child life","occupational therap","occ therap","respiratory therap","speech pathology","slp","speech pathologist","massage therapy","pulmonary tech","speech therapy","orthoptist","physical therapy assistant","physical therap","pt assist"] },
+            { label:"Urgent Care",       terms:["urgent care"] },
+          ];
+
+          // Pre-normalize
+          function normS(s: string) {
+            return s.toLowerCase().trim()
+              .replace(/[()]/g,"").replace(/&/g," and ")
+              .replace(/[/:;,.-]/g," ").replace(/\s+/g," ");
+          }
+          function phraseMatch(field: string, term: string) {
+            return term ? (` ${field} `).includes(` ${term} `) : false;
+          }
+          const CANON_NORM = CANON.map(g => ({ label: g.label, terms: g.terms.map(normS) }));
+
+          // Returns ALL matching L1 groups for a raw feature value string
+          function valueToL1Groups(rawValue: string): string[] {
+            const norm = normS(rawValue);
+            const matches: string[] = [];
+            for (const { label, terms } of CANON_NORM) {
+              if (terms.some(t => phraseMatch(norm, t))) matches.push(label);
             }
-            if (prefix === "ACCESS_USER_PROV_SPECIALTY") {
-              return value.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()).trim();
-            }
-            if (prefix === "ACCESS_USER_CLINICIAN_TITLE") {
-              return value.replace(/^[^a-zA-Z0-9]+/,"").replace(/_/g," ")
-                .replace(/\b\w/g,c=>c.toUpperCase()).trim() || "Clinician Title";
-            }
-            if (prefix === "ACCESS_USER_IS_RESIDENT")  return "Resident";
-            if (prefix === "INPATIENT_DEPT_YN")         return "Inpatient Dept";
-            return value.replace(/^[^a-zA-Z0-9]+/,"").replace(/_/g," ")
-              .replace(/\b\w/g,c=>c.toUpperCase()).trim() || feat;
+            return matches.length > 0 ? matches : ["Other"];
           }
 
-          // ── Merge freq + present rows for the same entity ─────────────────
-          // Key = prefix::value (strip the ::freq / ::present suffix)
+          // ── Clean display label from raw value ────────────────────────────
+          function cleanLabel(prefix: string, raw: string): string {
+            const v = raw.replace(/^\*/,"").replace(/^\./,"").trim();
+            if (prefix === "ACCESS_USER_IS_RESIDENT") return v === "Y" ? "Is Resident" : "Not Resident";
+            if (prefix === "INPATIENT_DEPT_YN")       return v === "Y" ? "Inpatient Dept (Y)" : "Outpatient (N)";
+            return v.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()).trim() || v;
+          }
+
+          // ── Step 1: merge ::freq + ::present for each feature key ─────────
           const mergedMap: Record<string, {
-            label: string;
-            totalContrib: number;
-            totalValue: number;
-            weight: number;
-            active: boolean;
-            feat: string;
+            prefix: string; rawValue: string; label: string;
+            totalContrib: number; totalValue: number;
+            weight: number; active: boolean;
           }> = {};
 
           for (const s of (data.topContrib ?? [])) {
             const parts  = s.feature.split("::");
-            const key    = `${parts[0]}::${parts[1] ?? ""}`;
-            const label  = decodeFeature(s.feature);
+            const prefix = parts[0] ?? "";
+            const value  = parts[1] ?? "";
+            // Skip EHR metric noise — not clinically meaningful in this view
+            if (prefix === "METRIC_DESC" || prefix === "METRIC_GROUP") continue;
+            const key = `${prefix}::${value}`;
             if (!mergedMap[key]) {
-              mergedMap[key] = {
-                label, feat: s.feature,
-                totalContrib: 0, totalValue: 0,
-                weight: s.weight, active: false,
-              };
+              mergedMap[key] = { prefix, rawValue: value, label: cleanLabel(prefix, value),
+                totalContrib: 0, totalValue: 0, weight: s.weight, active: false };
             }
             mergedMap[key].totalContrib += s.contribution;
             mergedMap[key].totalValue   += s.value;
             if (s.value !== 0) mergedMap[key].active = true;
+            if (Math.abs(s.weight) > Math.abs(mergedMap[key].weight)) mergedMap[key].weight = s.weight;
           }
 
-          const merged = Object.values(mergedMap)
-            .sort((a,b) => Math.abs(b.totalContrib) - Math.abs(a.totalContrib));
+          // ── Step 2: assign each merged entry to L1 group(s) ──────────────
+          // Entries that span 2 groups get a split-color indicator (like EgoNetwork nodes)
+          interface L1Group {
+            label: string; color: string;
+            totalContrib: number; active: boolean;
+            children: Array<typeof mergedMap[string] & { allGroups: string[] }>;
+          }
+          const l1Map: Record<string, L1Group> = {};
 
-          const active   = merged.filter(m => m.active);
-          const inactive = merged.filter(m => !m.active).slice(0, 3);
-          const display  = [...active, ...inactive];
+          for (const entry of Object.values(mergedMap)) {
+            // Classify using the raw value (specialty/title/type value)
+            const groups = valueToL1Groups(entry.rawValue);
+            const entryWithGroups = { ...entry, allGroups: groups };
+            for (const g of groups) {
+              if (!l1Map[g]) l1Map[g] = { label: g, color: L1_COLORS_LOCAL[g] ?? "#94a3b8", totalContrib: 0, active: false, children: [] };
+              l1Map[g].totalContrib += entry.totalContrib / groups.length; // split contribution across groups
+              if (entry.active) l1Map[g].active = true;
+              // Only add child once (to first group in the list to avoid duplicates in children)
+              if (g === groups[0]) l1Map[g].children.push(entryWithGroups);
+            }
+          }
 
-          if (display.length === 0) return (
+          // Sort children by |contrib| desc
+          for (const g of Object.values(l1Map)) {
+            g.children.sort((a,b) => Math.abs(b.totalContrib) - Math.abs(a.totalContrib));
+          }
+
+          // ── Step 3: sort L1 groups — active first, then by |contrib| ─────
+          const sortedGroups = Object.values(l1Map).sort((a,b) => {
+            if (a.active !== b.active) return a.active ? -1 : 1;
+            return Math.abs(b.totalContrib) - Math.abs(a.totalContrib);
+          });
+
+          if (sortedGroups.length === 0) return (
             <span style={{color:"#94A3B8",fontSize:11,fontFamily:FONT}}>No surrogate data for this week</span>
           );
 
-          const maxC = Math.max(...display.map(m => Math.abs(m.totalContrib)), 0.001);
+          const maxC = Math.max(...sortedGroups.map(g => Math.abs(g.totalContrib)), 0.001);
 
-          return display.map((m, si) => {
-            const isHarmful = m.totalContrib > 0;
-            const barW = Math.min(88, (Math.abs(m.totalContrib) / maxC) * 88);
-            const col  = m.active ? (isHarmful ? "#E53E3E" : "#38A169") : "#CBD5E1";
+          return sortedGroups.map((group) => {
+            const isHarmful  = group.totalContrib > 0;
+            const barW       = Math.min(88, (Math.abs(group.totalContrib) / maxC) * 88);
+            const col        = group.active ? (isHarmful ? "#E53E3E" : "#38A169") : "#CBD5E1";
+            const isExpanded = expandedSurrogateGroups.has(group.label);
+            const activeCount = group.children.filter(c => c.active).length;
+
             return (
-              <div key={si} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",
-                borderBottom:"1px solid #F1F5F9", opacity: m.active ? 1 : 0.38}}>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{color: m.active ? "#0F172A" : "#94A3B8",
-                    fontSize:11,fontFamily:FONT,fontWeight: m.active ? 600 : 400,
-                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                    {m.label}
+              <div key={group.label}>
+                {/* ── L1 Group header ── */}
+                <div onClick={() => toggleSurrogateGroup(group.label)}
+                  style={{display:"flex",alignItems:"center",gap:7,padding:"7px 6px",
+                    borderBottom: isExpanded ? "none" : "1px solid #F1F5F9",
+                    opacity: group.active ? 1 : 0.4, cursor:"pointer",
+                    background: isExpanded ? group.color+"0a" : "transparent",
+                    borderRadius: isExpanded ? "6px 6px 0 0" : 6, transition:"background 0.15s"}}>
+
+                  {/* Color swatch */}
+                  <div style={{width:10,height:10,borderRadius:2,background:group.color,flexShrink:0}}/>
+
+                  {/* Active/total badge */}
+                  <span style={{fontSize:9,color:group.color,fontWeight:800,flexShrink:0,
+                    background:group.color+"18",borderRadius:3,padding:"1px 6px",
+                    border:`1px solid ${group.color}33`,minWidth:24,textAlign:"center"}}>
+                    {activeCount}/{group.children.length}
+                  </span>
+
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{color:group.active?group.color:"#94A3B8",fontSize:11,
+                      fontFamily:FONT,fontWeight:800,letterSpacing:0.3}}>{group.label}</div>
+                    <div style={{color:"#94A3B8",fontSize:8,fontFamily:FONT,marginTop:1,
+                      overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                      {group.children.filter(c=>c.active).slice(0,3).map(c=>c.label).join(" · ")}
+                      {activeCount > 3 ? ` +${activeCount-3}` : ""}
+                      {activeCount === 0 ? "none active" : ""}
+                    </div>
                   </div>
-                  <div style={{color:"#94A3B8",fontSize:9,fontFamily:FONT,marginTop:1}}>
-                    {m.active
-                      ? `val=${m.totalValue.toFixed(1)} · w=${m.weight > 0 ? "+" : ""}${m.weight.toFixed(3)}`
-                      : "not active this week"
-                    }
+
+                  <div style={{width:72,height:6,background:"#F1F5F9",borderRadius:3,overflow:"hidden",flexShrink:0}}>
+                    <div style={{height:"100%",width:group.active?barW:0,background:col,borderRadius:3,transition:"width .2s"}}/>
                   </div>
+                  <span style={{color:col,fontSize:11,fontWeight:800,minWidth:52,
+                    textAlign:"right",fontFamily:FONT,flexShrink:0}}>
+                    {group.active ? `${group.totalContrib>=0?"+":""}${group.totalContrib.toFixed(3)}`
+                      : <span style={{color:"#CBD5E1",fontWeight:400,fontSize:10}}>—</span>}
+                  </span>
+                  <span style={{color:"#94A3B8",fontSize:10,flexShrink:0,
+                    transform:isExpanded?"rotate(90deg)":"rotate(0)",
+                    transition:"transform 0.15s",display:"inline-block"}}>▶</span>
                 </div>
-                <div style={{width:88,height:7,background:"#F1F5F9",borderRadius:3,overflow:"hidden",flexShrink:0}}>
-                  <div style={{height:"100%",width: m.active ? barW : 0,
-                    background:col,borderRadius:3,transition:"width .2s"}}/>
-                </div>
-                <span style={{color:col,fontSize:11,fontWeight:800,
-                  minWidth:52,textAlign:"right",fontFamily:FONT}}>
-                  {m.active
-                    ? `${m.totalContrib >= 0 ? "+" : ""}${m.totalContrib.toFixed(3)}`
-                    : <span style={{color:"#CBD5E1",fontWeight:400,fontSize:10}}>—</span>
-                  }
-                </span>
+
+                {/* ── Expanded children ── */}
+                {isExpanded && (
+                  <div style={{marginBottom:6,borderLeft:`3px solid ${group.color}30`,
+                    marginLeft:6,paddingLeft:10,background:group.color+"04",
+                    borderRadius:"0 0 6px 6px",borderBottom:"1px solid #F1F5F9"}}>
+                    {group.children.map((child, ci) => {
+                      const cHarmful = child.totalContrib > 0;
+                      const cCol     = child.active ? (cHarmful?"#E53E3E":"#38A169") : "#CBD5E1";
+                      const cBarW    = Math.min(72,(Math.abs(child.totalContrib)/maxC)*72);
+                      // Split-color indicator for features that span multiple L1 groups
+                      const multiGroup = child.allGroups.length > 1;
+                      return (
+                        <div key={ci} style={{display:"flex",alignItems:"center",gap:7,
+                          padding:"4px 4px",borderBottom:"1px solid #F8FAFC",
+                          opacity:child.active?1:0.4}}>
+                          {/* Split-color dot if multi-group */}
+                          <div style={{width:8,height:8,borderRadius:"50%",flexShrink:0,
+                            background: multiGroup
+                              ? `linear-gradient(90deg, ${group.color} 50%, ${L1_COLORS_LOCAL[child.allGroups[1]]??"#94a3b8"} 50%)`
+                              : (child.active ? group.color : "#E2E8F0"),
+                            border: multiGroup ? `1px solid #fff` : "none",
+                            boxShadow: multiGroup ? `0 0 0 1px ${group.color}` : "none",
+                          }}/>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{display:"flex",alignItems:"center",gap:4}}>
+                              <span style={{color:child.active?"#1e293b":"#94A3B8",fontSize:10,
+                                fontFamily:FONT,fontWeight:child.active?600:400,
+                                overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                                {child.label}
+                              </span>
+                              {/* Group tags for multi-group items */}
+                              {multiGroup && child.allGroups.slice(0,2).map(g => (
+                                <span key={g} style={{fontSize:7,color:L1_COLORS_LOCAL[g]??"#94a3b8",
+                                  background:(L1_COLORS_LOCAL[g]??"#94a3b8")+"15",
+                                  borderRadius:3,padding:"0 4px",border:`1px solid ${(L1_COLORS_LOCAL[g]??"#94a3b8")}33`,
+                                  whiteSpace:"nowrap",flexShrink:0}}>
+                                  {g}
+                                </span>
+                              ))}
+                            </div>
+                            {child.active && (
+                              <div style={{color:"#94A3B8",fontSize:8,fontFamily:FONT}}>
+                                val={child.totalValue.toFixed(1)} · w={child.weight>=0?"+":""}{child.weight.toFixed(3)}
+                              </div>
+                            )}
+                          </div>
+                          <div style={{width:72,height:4,background:"#F1F5F9",borderRadius:2,overflow:"hidden",flexShrink:0}}>
+                            <div style={{height:"100%",width:child.active?cBarW:0,background:cCol,borderRadius:2}}/>
+                          </div>
+                          <span style={{color:cCol,fontSize:10,fontWeight:700,
+                            minWidth:48,textAlign:"right",fontFamily:FONT,flexShrink:0}}>
+                            {child.active?`${child.totalContrib>=0?"+":""}${child.totalContrib.toFixed(3)}`:"—"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           });
@@ -696,7 +858,7 @@ export default function App(){
   const [view,           setView]           = useState<"overview"|"compare"|"whatif">("overview");
 
   useEffect(()=>{
-    initRealData("/temporal_networks.json","/full_va_export_with_linear2.json","/ego_network.json").then(()=>{
+    initRealData("/temporal_networks.json","/full_va_export_with_linear2.json").then(()=>{
       setReady(true);
       Promise.all([nanSafe("/temporal_networks.json"),nanSafe("/full_va_export_with_linear2.json")])
         .then(([t,e])=>{
@@ -1001,18 +1163,32 @@ export default function App(){
             "Resident":"#64748b","Inpatient":"#64748b",
           };
 
-          // featGroupLabel: uses same classifyHCP logic (canonical terms) for specialty features;
-          // handles non-specialty prefixes separately
+          // featGroupLabel: maps any feature to its L1 taxonomy group(s)
+          // Uses classifyHCPMulti so PROV_TYPE/CLINICIAN_TITLE/PROV_SPECIALTY all
+          // route through the same 22-group taxonomy — returns primary group name
           function featGroupLabel(feat: string): string {
-            const prefix = feat.split("::")[0];
-            if (prefix==="ACCESS_USER_IS_RESIDENT") return "Resident";
-            if (prefix==="ACCESS_USER_CLINICIAN_TITLE") return "Clinician Title";
-            if (prefix==="INPATIENT_DEPT_YN") return "Inpatient";
-            if (prefix==="ACCESS_USER_PROV_TYPE") return "Provider Type";
-            // For specialty features, extract the raw specialty value and classify it
-            const rawSpec = (feat.split("::")[1] ?? "").replace(/_/g, " ");
-            const classified = classifyHCP(rawSpec, "", "");
-            return classified === "Unknown" ? "Other" : classified;
+            const parts  = feat.split("::");
+            const prefix = parts[0] ?? "";
+            const raw    = (parts[1] ?? "").replace(/^\*/,"").replace(/^\./,"").trim();
+
+            if (prefix === "ACCESS_USER_IS_RESIDENT") return "Residency";
+            if (prefix === "INPATIENT_DEPT_YN")        return "Inpatient";
+            if (prefix === "METRIC_DESC" || prefix === "METRIC_GROUP") return "EHR Activity";
+
+            // For PROV_TYPE + CLINICIAN_TITLE + PROV_SPECIALTY — classify the raw value
+            // Pass into the right field depending on prefix so priority order is respected
+            let groups: string[];
+            if (prefix === "ACCESS_USER_PROV_SPECIALTY") {
+              groups = classifyHCPMulti(raw, "", "");
+            } else if (prefix === "ACCESS_USER_CLINICIAN_TITLE") {
+              groups = classifyHCPMulti("", "", raw);
+            } else if (prefix === "ACCESS_USER_PROV_TYPE") {
+              groups = classifyHCPMulti("", raw, "");
+            } else {
+              groups = classifyHCPMulti(raw, "", "");
+            }
+            const primary = groups[0] ?? "Other";
+            return primary === "Other" ? "Other" : primary;
           }
 
           const groupMap: Record<string,{color:string;features:SurrogateFeature[];totalImportance:number}> = {};

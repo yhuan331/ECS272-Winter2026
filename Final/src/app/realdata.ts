@@ -29,7 +29,8 @@ export interface WeekData {
   hcpCount: number;
   noteFrequency: number;
   attributeSummary: string;
-  hcpNames: string[];
+  hcpNames: string[]; // kept for backward compat
+  hcpSnaps: Array<{ specialty: string; providerType: string; clinicianTitle: string }>; // full snapshot
   entropy: number;
   topSHAP: Array<{ feature: string; contribution: number }>;
   // Full surrogate data — feature, surrogate weight, value, contribution
@@ -239,6 +240,13 @@ function buildWeeklyData(
       .filter((v): v is string => v !== null)
     )];
 
+    // Full snapshots — preserve all three fields for accurate classification
+    const hcpSnaps = snapshot.map(h => ({
+      specialty:      (h.specialty      ?? "").trim(),
+      providerType:   (h.providerType   ?? "").trim(),
+      clinicianTitle: (h.clinicianTitle ?? "").trim(),
+    }));
+
     return {
       week:             w.week,
       riskScore,
@@ -253,6 +261,7 @@ function buildWeeklyData(
       noteFrequency:    notesByWeek[w.week] ?? 0,
       attributeSummary,
       hcpNames,
+      hcpSnaps,
       entropy:          w.entropy,
       topSHAP:          shap.slice(0, 10),
       topContrib:       (w.topContrib ?? [])
@@ -325,7 +334,9 @@ function buildPatients(
 // ─────────────────────────────────────────────
 
 async function fetchJSON(path: string): Promise<unknown> {
-  const text = await fetch(path).then((r) => r.text());
+  const res = await fetch(path);
+  if (!res.ok) throw new Error(`fetchJSON ${path} → HTTP ${res.status}`);
+  const text = await res.text();
   const clean = text
     .replace(/\bNaN\b/g, "null")
     .replace(/-Infinity\b/g, "null")
@@ -340,14 +351,21 @@ async function fetchJSON(path: string): Promise<unknown> {
 export async function initRealData(
   temporalPath   = "/temporal_networks.json",
   egoPath        = "/full_va_export_with_linear2.json",
-  egoNetworkPath = "/ego_network.json",
+  egoNetworkPath = "/ego_network.json",  // kept for backward compat — ignored if weeklySnapshots embedded
   focusPatientId?: string,
 ): Promise<void> {
-  const [temporalRaw, egoRaw, egoNetRaw] = await Promise.all([
+  const [temporalRaw, egoRaw] = await Promise.all([
     fetchJSON(temporalPath),
     fetchJSON(egoPath),
-    fetchJSON(egoNetworkPath),
   ]);
+
+  // Try to load ego_network.json as fallback — silently ignore if missing
+  let egoNetRaw: Record<string, EgoNetworkRecord> = {};
+  try {
+    egoNetRaw = await fetchJSON(egoNetworkPath) as Record<string, EgoNetworkRecord>;
+  } catch {
+    // ego_network.json not available — will use embedded weeklySnapshots from main export
+  }
 
   const temporal = temporalRaw as Record<string, TemporalRecord>;
   let egoMap: Record<string, EgoRecord>;
@@ -358,8 +376,24 @@ export async function initRealData(
     egoMap = egoRaw as Record<string, EgoRecord>;
   }
 
-  // ego_network.json is already keyed by patient ID
-  const egoNetwork = egoNetRaw as Record<string, EgoNetworkRecord>;
+  // Build ego network cache:
+  // Prefer weeklySnapshots embedded in the main export (new unified format).
+  // Fall back to separate ego_network.json for backward compat.
+  const egoNetwork: Record<string, EgoNetworkRecord> = {};
+  for (const [pid, rec] of Object.entries(egoMap)) {
+    const embedded = (rec as EgoRecord & { weeklySnapshots?: EgoNetworkRecord["weeklySnapshots"] }).weeklySnapshots;
+    if (embedded) {
+      egoNetwork[pid] = {
+        patientNodeId: pid,
+        cancer:        rec.cohort ?? "",
+        stage:         "",
+        vital_status:  "",
+        weeklySnapshots: embedded,
+      };
+    } else if (egoNetRaw[pid]) {
+      egoNetwork[pid] = egoNetRaw[pid];
+    }
+  }
 
   patients.length = 0;
   patients.push(...buildPatients(temporal, egoMap));
@@ -492,32 +526,107 @@ export type HCPLevel1 =
   | "Medical Oncology" | "Mental Health" | "Nursing" | "Pathology"
   | "Patient Support" | "Pediatrics" | "Pharmacy"
   | "Radiation Oncology" | "Radiology" | "Scribe" | "Specialty Other"
-  | "Surgery Other" | "Surgical Oncology" | "Therapy" | "Urgent Care" | "Unknown";
+  | "Surgery Other" | "Surgical Oncology" | "Therapy" | "Urgent Care" | "Other";
 
-// ── Canonical group definitions — MUST stay in sync with EgoNetwork LEVEL1_GROUPS ──
+// ── Canonical group definitions — strictly from the Level 1 taxonomy document ──
+// Terms are matched in priority order: (i) PROV_SPECIALTY, (ii) CLINICIAN_TITLE, (iii) PROV_TYPE
+// A single HCP can belong to MULTIPLE groups (split-color rendering like EgoNetwork nodes)
 const CANON_GROUPS: Array<{ label: HCPLevel1; terms: string[] }> = [
-  { label: "Ancillary",          terms: ["acupuncture","audiologist","chaplain","clinical research coordinator","cpt","health coach","home health aide","technician","tech","audiology","health educator","sonographer","spiritual care"] },
-  { label: "Dietary",            terms: ["dietetic asst","dietetic intern","dietician","nutrition","rd","registered dietician"] },
-  { label: "Emergency Medicine", terms: ["emergency medicine","geriatric emergency medicine","pediatric emergency"] },
-  { label: "Family Practice",    terms: ["family practice"] },
-  { label: "General Practice",   terms: ["general practice","gen prevent med","preventative medicine","preventive medicine"] },
-  { label: "Internal Medicine",  terms: ["geriatric med, int","hospitalist","internal medicine","geriatric medicine","medicine"] },
-  { label: "Int. Med. Specialty",terms: ["allergy","allergist","immunology","cardiology","cardiovascular dis","critical care med","endocrinology/metabo","gastroenterology","hematology","infectious disease","intervent cardiology","interventional cardiology","nephrology","pulmonary disease","rheumatology","adult congenital heart","cardiac electrophysiology","critical care","endocrinology","heart failure","hepatology","pulmonary medicine"] },
-  { label: "Medical Oncology",   terms: ["hematology/oncology","hospice","medical oncology","oncology, int","palliative medicine","bone marrow transplant","neuro oncology","oncology"] },
-  { label: "Mental Health",      terms: ["addiction psych","child/adolescent psy","clinic psychologist","internal medicine/psy","psychiatry","psychology","psych tech","psychology intern","psychology trainee","marriage and family therapist","neuropsychology"] },
-  { label: "Nursing",            terms: ["husc","registered nurse","rn","lvn","mosc","nurse practitioner","np","nursing","physician assistant","unit service coordinator","transition nurse specialist","pa/np"] },
-  { label: "Pathology",          terms: ["clinical laboratory scientist","ct (ascp)","cytotech","anatomic pathology","anatomic/cln path","blood banking","clinical pathology","cytopathology","cytotechnologist","dermatopathology","gross assistant","histotech","hospital laboratory technician","hlt","hcla","hematopathology","lab tech","pathology","pathology molecular genetic","pa(ascp)","pathologists","sct (ascp)"] },
-  { label: "Patient Support",    terms: ["case manager","case manager assistant","health services navigator","dc plng/case mgmt","licensed clinical social worker","lcsw","msw","patient navigator","social worker","social work intern","care coordinator","care management associate"] },
-  { label: "Pediatrics",         terms: ["pediatrics","neo/perinatal med","pediatrics/allergy","pediatric hematology","ped infectious dis","neonatology","pediatric dermatology","pediatric neurology"] },
-  { label: "Pharmacy",           terms: ["pharm intern","pharm resident","pharm tech","pharmacist","pharmd","rph","pharmacy intern","pharmacy resident","pharmacy tech"] },
-  { label: "Radiation Oncology", terms: ["radiation oncology","radiation therapy"] },
-  { label: "Radiology",          terms: ["diagnostic radiology","nuclear medicine","nuclear radiology","neuroradiology","radiology","radiology/pediatrics","rad tech","vasc/intrvn radiology","interventional radiology"] },
-  { label: "Scribe",             terms: ["scribe"] },
-  { label: "Specialty Other",    terms: ["certified nurse midwife","dental asst","cln neurophysiology","dentist","dermatology","geneticist","genetic counselor","maternal/fetal med","med geneticist","neurology","ob/gyn","obstetrics","other m.d.","pain management","pain medicine","pmr","podiatrist","sleep medicine","sports medicine","vascular med","vascular neurology","athletic training","epileptologist","gynecology","hyperbaric medicine","hyperbaric technician","interventional pain management","maternal and fetal medicine","medical genetics","micrographic dermatologic surgery","osteopathic manipulative medicine","physical medicine and rehab","podiatry","reproductive endocrinology","no/unknown physician specialty"] },
-  { label: "Surgery Other",      terms: ["bariatric surgery","female pelvic medicine","gen vascular surg","hand surg, plast sur","hand surg, ortho","laryngology","ophthalmology","optometrist","ortho tech","ortho - foot and ankle","orthopaedics sports","ortho trauma","orthotist","otolaryngology","prosthetics/orthotics","transplant","transplant surgery","surgery trauma","trauma acs","general trauma surgery","hand surgery","head and neck neck surgery","optometry","orthopaedic tech","vascular surgery","transplant assistant"] },
-  { label: "Surgical Oncology",  terms: ["adult reconstructive surgery","anesthesiologist","anesthesiologists","cardiothoracic surg","colon/rectal surg","crit care med, anes","gynecologic oncology","nurse anesthes","orthopaedic oncology","ortho spine","orthopaedic surgery","plastic surgery","surgery","surg/cardiovascular","surgery crit care","surg/neur crit care","surgery/neurologic","surgery/oncology","surg tech","thoracic surg","urology","anesthesiology","cardiac surgery","certified registered nurse anesthes","colon and rectal surgery","general surgery","gyn oncology","neurosurgery","orthopedics"] },
-  { label: "Therapy",            terms: ["child life","occupational therap","occ therap","respiratory therap","speech pathology","slp","speech pathologist","massage therapy","pulmonary tech","speech therapy","orthoptist","physical therapy assistant","physical therap","pt assist"] },
-  { label: "Urgent Care",        terms: ["urgent care"] },
+  { label: "Ancillary",
+    terms: ["acupuncture","audiologist","chaplain","clinical research coordinator","cpt","health coach","home health aide","technician","tech","audiology","health educator","sonographer","spiritual care"] },
+  { label: "Dietary",
+    terms: ["dietetic asst","dietetic intern","dietician","nutrition","rd","registered dietician","registered dietitian"] },
+  { label: "Emergency Medicine",
+    terms: ["emergency medicine","geriatric emergency medicine","pediatric emergency"] },
+  { label: "Family Practice",
+    terms: ["family practice"] },
+  { label: "General Practice",
+    terms: ["general practice","gen prevent med","preventative medicine","preventive medicine"] },
+  { label: "Internal Medicine",
+    terms: ["geriatric med, int","hospitalist","internal medicine","geriatric medicine","medicine","internal med"] },
+  { label: "Int. Med. Specialty",
+    terms: [
+      "allergy","allergist","allergist/immunology","immunology","cardiology","cardiovascular dis",
+      "critical care med","endocrinology/metabo","endocrinology","gastroenterology","hematology",
+      "infectious disease","infectious diseases","intervent cardiology","interventional cardiology",
+      "nephrology","pulmonary disease","pulmonary medicine","rheumatology",
+      "adult congenital heart","cardiac electrophysiology","critical care",
+      "heart failure","hepatology","crit care med, anes",
+    ] },
+  { label: "Medical Oncology",
+    terms: ["hematology/oncology","hospice","medical oncology","oncology, int","palliative medicine","bone marrow transplant","neuro oncology","oncology"] },
+  { label: "Mental Health",
+    terms: ["addiction psych","child/adolescent psy","clinic psychologist","internal medicine/psy","internal med/psy","psychiatry","psychology","psych tech","psychology intern","psychology trainee","marriage and family therapist","neuropsychology","cln neurophysiology"] },
+  { label: "Nursing",
+    terms: [
+      "husc","registered nurse","rn","lvn","lpn","mosc","nurse practitioner","np","nursing",
+      "physician assistant","pa","unit service coordinator","transition nurse specialist","pa/np",
+      "nurse clinical specialist","nurse: rn or lvn","nurse: clinical specialist","ma",
+    ] },
+  { label: "Pathology",
+    terms: [
+      "clinical laboratory scientist","ct (ascp)","cytotech","anatomic pathology","anatomic/cln path",
+      "blood banking","clinical pathology","cytopathology","cytotechnologist","dermatopathology,der",
+      "dermatopathology","gross assistant","histotech","hospital laboratory technician","hlt","hcla",
+      "hematopathology","lab tech","pathology","pathology molecular genetic","pa(ascp)",
+      "pathologists assistant","sct (ascp)",
+    ] },
+  { label: "Patient Support",
+    terms: [
+      "case manager","case manager assistant","health services navigator","dc plng/case mgmt",
+      "licensed clinical social worker","lcsw","msw","patient navigator","social worker",
+      "social work intern","care coordinator","care management associate",
+    ] },
+  { label: "Pediatrics",
+    terms: ["pediatrics","neo/perinatal med","pediatrics/allergy","pediatric hematology","ped infectious dis","neonatology","pediatric dermatology","pediatric neurology","pediatric cardiology","pediatric emergency"] },
+  { label: "Pharmacy",
+    terms: ["pharm intern","pharm resident","pharm tech","pharmacist","pharmd","rph","pharmacy intern","pharmacy resident","pharmacy tech","pharmacy"] },
+  { label: "Radiation Oncology",
+    terms: ["radiation oncology","radiation therapy"] },
+  { label: "Radiology",
+    terms: ["diagnostic radiology","nuclear medicine","nuclear radiology","neuroradiology","radiology","radiology/pediatrics","rad tech","vasc/intrvn radiolog","vasc/intrvn radiology","interventional radiology","specialty vascular and interventional radiology"] },
+  { label: "Scribe",
+    terms: ["scribe"] },
+  { label: "Specialty Other",
+    terms: [
+      "certified nurse midwife","dental asst","dentist","dermatology","geneticist","genetic counselor",
+      "maternal/fetal med","med geneticist","neurology","ob/gyn","obstetrics","obstetrics/gyn",
+      "other m.d.","pain management","pain medicine","pmr","podiatrist","sleep medicine",
+      "sports medicine","vascular med","vascular medicine","vascular neurology","athletic training",
+      "epileptologist","gynecology","hyperbaric medicine","hyperbaric technician",
+      "interventional pain management","maternal and fetal medicine","medical genetics",
+      "micrographic dermatologic surgery","osteopathic manipulative medicine",
+      "physical medicine and rehab","podiatry","reproductive endocrinology",
+      "no/unknown physician specialty","verbal order signer","other",
+    ] },
+  { label: "Surgery Other",
+    terms: [
+      "bariatric surgery","female pelvic medicine","gen vascular surg","hand surg, plast sur",
+      "hand surg, ortho","hand surgery, ortho","hand surgery, otho","laryngology","ophthalmology",
+      "optometrist","ortho tech","ortho - foot and ankle","orthopaedics-foot and ankle",
+      "orthopaedics sports","ortho trauma","orthopaedic trauma","orthotist","otolaryngology",
+      "prosthetics/orthotics","transplant","transplant surgery","surgery trauma","trauma acs",
+      "general trauma surgery","head and neck surgery","optometry","orthopaedic tech",
+      "vascular surgery","transplant assistant","orthopaedics, spine","ortho spine",
+    ] },
+  { label: "Surgical Oncology",
+    terms: [
+      "adult reconstructive surgery","anesthesiologist","anesthesiologists","anesthesiology",
+      "cardiothoracic surg","colon/rectal surg","colon and rectal surgery","crit care med, anes",
+      "gynecologic oncology","gyn oncology","nurse anesthes","certified registered nurse anesthes",
+      "orthopaedic oncology","orthopaedic surgery","orthopedics","plastic surgery",
+      "surgery","surg/cardiovascular","surgery crit care","surg/neur crit care",
+      "surgery/neurologic","surgery/oncology","surg tech","thoracic surg","thoracic surgery",
+      "urology","cardiac surgery","neurosurgery","general surgery",
+    ] },
+  { label: "Therapy",
+    terms: [
+      "child life","occupational therap","occ therap","respiratory therap","speech pathology",
+      "slp","speech pathologist","massage therapy","pulmonary tech","speech therapy","orthoptist",
+      "physical therapy assistant","physical therap","pt assist",
+    ] },
+  { label: "Urgent Care",
+    terms: ["urgent care"] },
 ];
 
 // Normalize strings exactly as EgoNetwork does
@@ -536,23 +645,28 @@ const CANON_NORM = CANON_GROUPS.map(g => ({
   termsNorm: g.terms.map(t => normHCP(t)),
 }));
 
-export function classifyHCP(specialty: string, providerType: string, clinicianTitle: string): HCPLevel1 {
-  const fields = [
-    normHCP(specialty),
-    normHCP(providerType),
-    normHCP(clinicianTitle),
-  ].filter(Boolean);
+// Returns ALL matching groups (can be 2+ for split-color nodes, like EgoNetwork)
+export function classifyHCPMulti(specialty: string, providerType: string, clinicianTitle: string): HCPLevel1[] {
+  const specField  = normHCP(specialty);
+  const titleField = normHCP(clinicianTitle);
+  const typeField  = normHCP(providerType);
 
-  // Priority 1: match specialty field first (same priority as EgoNetwork)
-  const specField = normHCP(specialty);
+  const matches = new Set<HCPLevel1>();
+
+  // Priority order: (i) specialty, (ii) clinician title, (iii) prov type
   for (const { label, termsNorm } of CANON_NORM) {
-    if (termsNorm.some(tn => hasPhrase(specField, tn))) return label;
+    if (termsNorm.some(tn => hasPhrase(specField, tn)))  matches.add(label);
+    if (termsNorm.some(tn => hasPhrase(titleField, tn))) matches.add(label);
+    if (termsNorm.some(tn => hasPhrase(typeField, tn)))  matches.add(label);
   }
-  // Priority 2: match any field
-  for (const { label, termsNorm } of CANON_NORM) {
-    if (termsNorm.some(tn => fields.some(f => hasPhrase(f, tn)))) return label;
-  }
-  return "Unknown";
+
+  const result = [...matches];
+  return result.length > 0 ? result : ["Other"];
+}
+
+// Single-label version for backward compat (returns primary/first match)
+export function classifyHCP(specialty: string, providerType: string, clinicianTitle: string): HCPLevel1 {
+  return classifyHCPMulti(specialty, providerType, clinicianTitle)[0];
 }
 
 
@@ -567,13 +681,17 @@ export function buildHCPTree(
 ): TreeGroup[] {
   const groups: Record<string, Record<string, number>> = {};
   for (const h of snapshots) {
-    const l1 = classifyHCP(h.specialty, h.providerType, h.clinicianTitle ?? "");
+    // Get ALL matching groups (can be 2+ for split-color like EgoNetwork)
+    const l1Labels = classifyHCPMulti(h.specialty, h.providerType, h.clinicianTitle ?? "");
     const BAD_V = new Set(["UNKNOWN", "nan", "NaN", "null", "undefined", "", "NONE"]);
     const rawSp = (h.specialty ?? "").trim();
     const rawPt = (h.providerType ?? "").trim();
     const sp = (!BAD_V.has(rawSp) && rawSp) ? rawSp : ((!BAD_V.has(rawPt) && rawPt) ? rawPt : "Unknown");
-    if (!groups[l1]) groups[l1] = {};
-    groups[l1][sp] = (groups[l1][sp] ?? 0) + 1;
+    // Add to every matched group
+    for (const l1 of l1Labels) {
+      if (!groups[l1]) groups[l1] = {};
+      groups[l1][sp] = (groups[l1][sp] ?? 0) + 1;
+    }
   }
   return Object.entries(groups)
     .map(([l1, specs]) => ({
@@ -616,22 +734,31 @@ export function getPatientSurrogateRanking(data: WeekData[], limit = 60): Surrog
 
   const avg = (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
 
+  function cleanDisplayLabel(feature: string): string {
+    const parts  = feature.split("::");
+    const prefix = parts[0] ?? "";
+    const raw    = (parts[1] ?? parts[0]).replace(/^\*/, "").replace(/^\./, "").trim();
+
+    if (prefix === "ACCESS_USER_IS_RESIDENT")   return raw === "Y" ? "Is Resident" : "Not Resident";
+    if (prefix === "INPATIENT_DEPT_YN")          return raw === "Y" ? "Inpatient Dept" : "Outpatient";
+    if (prefix === "METRIC_DESC" || prefix === "METRIC_GROUP") {
+      return raw.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()).trim();
+    }
+    // For PROV_TYPE, CLINICIAN_TITLE, PROV_SPECIALTY — clean up the raw value
+    // Strip leading punctuation/asterisks/dots, replace underscores, title case
+    return raw.replace(/[_]/g, " ").replace(/\b\w/g, c => c.toUpperCase()).trim() || raw;
+  }
+
   return Object.entries(weightMap)
-    .map(([feature, d]) => {
-      const parts = feature.split("::");
-      const raw   = parts[1] ?? parts[0];
-      const displayLabel = raw.replace(/^\*/, "").replace(/_/g, " ")
-        .replace(/\b\w/g, c => c.toUpperCase()).trim();
-      return {
-        feature,
-        displayLabel,
-        importance:  avg(d.weights),
-        weight:      avg(d.weights),
-        avgContrib:  avg(d.contribs),
-        avgValue:    avg(d.values),
-        weekCount:   d.weights.length,
-      };
-    })
+    .map(([feature, d]) => ({
+      feature,
+      displayLabel: cleanDisplayLabel(feature),
+      importance:  avg(d.weights),
+      weight:      avg(d.weights),
+      avgContrib:  avg(d.contribs),
+      avgValue:    avg(d.values),
+      weekCount:   d.weights.length,
+    }))
     .sort((a, b) => b.importance - a.importance)
     .slice(0, limit);
 }

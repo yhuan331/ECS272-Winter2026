@@ -23,22 +23,24 @@ export function HCPBarChart({ selectedWeek, data }: Props) {
   // Use provided data or fall back to global weeklyData
   const source = data ?? weeklyData;
 
-  // Convert hcpNames (string[]) to the {specialty, providerType} shape buildHCPTree expects
-  const toSnaps = (names: string[]) =>
-    (names ?? []).map(n => ({ specialty: n, providerType: "", clinicianTitle: "" }));
-
   const tree: TreeGroup[] = useMemo(() => {
     if (!source.length) return [];
     if (selectedWeek !== null) {
       const week = source.find((w) => w.week === selectedWeek);
-      const names = (week as any)?.hcpNames ?? (week as any)?.hcpSnaps?.map((h: any) => h.specialty || h.providerType) ?? [];
-      if (!names.length) return [];
-      return buildHCPTree(toSnaps(names));
+      // Use full hcpSnaps (all 3 fields) — fall back to hcpNames as specialty-only if missing
+      const snaps = week?.hcpSnaps?.length
+        ? week.hcpSnaps
+        : (week?.hcpNames ?? []).map(n => ({ specialty: n, providerType: "", clinicianTitle: "" }));
+      if (!snaps.length) return [];
+      return buildHCPTree(snaps);
     }
-    const allNames = source.flatMap((w) =>
-      (w as any).hcpNames ?? ((w as any).hcpSnaps ?? []).map((h: any) => h.specialty || h.providerType) ?? []
+    // All weeks: aggregate full snapshots
+    const allSnaps = source.flatMap(w =>
+      w.hcpSnaps?.length
+        ? w.hcpSnaps
+        : (w.hcpNames ?? []).map(n => ({ specialty: n, providerType: "", clinicianTitle: "" }))
     );
-    return buildHCPTree(toSnaps(allNames));
+    return buildHCPTree(allSnaps);
   }, [selectedWeek, source.length]);
 
   if (!tree.length) {

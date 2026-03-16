@@ -34,7 +34,7 @@ const LEVEL1_GROUPS = [
   { key: "ancillary",         label: "Ancillary",            color: "#7B8CDE", angle: -150,
     terms: ["acupuncture","audiologist","chaplain","clinical research coordinator","cpt","health coach","home health aide","technician","tech","audiology","health educator","sonographer","spiritual care"] },
   { key: "dietary",           label: "Dietary",              color: "#56C596", angle: 150,
-    terms: ["dietetic asst","dietetic intern","dietician","nutrition","rd","registered dietician"] },
+    terms: ["dietetic asst","dietetic intern","dietician","nutrition","rd","registered dietician","registered dietitian"] },
   { key: "emergency",         label: "Emergency Medicine",   color: "#e07b39", angle: -120,
     terms: ["emergency medicine","geriatric emergency medicine","pediatric emergency"] },
   { key: "family_practice",   label: "Family Practice",      color: "#F4A261", angle: 90,
@@ -42,35 +42,35 @@ const LEVEL1_GROUPS = [
   { key: "general_practice",  label: "General Practice",     color: "#E9C46A", angle: 75,
     terms: ["general practice","gen prevent med","preventative medicine","preventive medicine"] },
   { key: "internal_medicine", label: "Internal Medicine",    color: "#2A9D8F", angle: 60,
-    terms: ["geriatric med, int","hospitalist","internal medicine","geriatric medicine","medicine"] },
+    terms: ["geriatric med, int","hospitalist","internal medicine","geriatric medicine","medicine","internal med"] },
   { key: "int_med_specialty", label: "Int. Med. Specialty",  color: "#1a47c8", angle: 30,
-    terms: ["allergy","allergist","immunology","cardiology","cardiovascular dis","critical care med","endocrinology/metabo","gastroenterology","hematology","infectious disease","intervent cardiology","interventional cardiology","nephrology","pulmonary disease","rheumatology","adult congenital heart","cardiac electrophysiology","critical care","endocrinology","heart failure","hepatology","pulmonary medicine"] },
+    terms: ["allergy","allergist","allergist/immunology","immunology","cardiology","cardiovascular dis","critical care med","endocrinology/metabo","endocrinology","gastroenterology","hematology","infectious disease","infectious diseases","intervent cardiology","interventional cardiology","nephrology","pulmonary disease","pulmonary medicine","rheumatology","adult congenital heart","cardiac electrophysiology","critical care","heart failure","hepatology","crit care med, anes"] },
   { key: "medical_oncology",  label: "Medical Oncology",     color: "#be185d", angle: -90,
     terms: ["hematology/oncology","hospice","medical oncology","oncology, int","palliative medicine","bone marrow transplant","neuro oncology","oncology"] },
   { key: "mental_health",     label: "Mental Health",        color: "#d97706", angle: -150,
-    terms: ["addiction psych","child/adolescent psy","clinic psychologist","internal medicine/psy","psychiatry","psychology","psych tech","psychology intern","psychology trainee","marriage and family therapist","neuropsychology"] },
+    terms: ["addiction psych","child/adolescent psy","clinic psychologist","internal medicine/psy","internal med/psy","psychiatry","psychology","psych tech","psychology intern","psychology trainee","marriage and family therapist","neuropsychology","cln neurophysiology"] },
   { key: "nursing",           label: "Nursing",              color: "#0891b2", angle: 150,
-    terms: ["husc","registered nurse","rn","lvn","mosc","nurse practitioner","np","nursing","physician assistant","unit service coordinator","transition nurse specialist","pa/np"] },
+    terms: ["husc","registered nurse","rn","lvn","lpn","mosc","nurse practitioner","np","nursing","physician assistant","pa","unit service coordinator","transition nurse specialist","pa/np","nurse clinical specialist","nurse: rn or lvn","nurse: clinical specialist","ma"] },
   { key: "pathology",         label: "Pathology",            color: "#6D6875", angle: 180,
-    terms: ["clinical laboratory scientist","ct (ascp)","cytotech","anatomic pathology","anatomic/cln path","blood banking","clinical pathology","cytopathology","cytotechnologist","dermatopathology","gross assistant","histotech","hospital laboratory technician","hlt","hcla","hematopathology","lab tech","pathology","pathology molecular genetic","pa(ascp)","pathologists","sct (ascp)"] },
+    terms: ["clinical laboratory scientist","ct (ascp)","cytotech","anatomic pathology","anatomic/cln path","blood banking","clinical pathology","cytopathology","cytotechnologist","dermatopathology,der","dermatopathology","gross assistant","histotech","hospital laboratory technician","hlt","hcla","hematopathology","lab tech","pathology","pathology molecular genetic","pa(ascp)","pathologists assistant","sct (ascp)"] },
   { key: "patient_support",   label: "Patient Support",      color: "#92400e", angle: 210,
     terms: ["case manager","case manager assistant","health services navigator","dc plng/case mgmt","licensed clinical social worker","lcsw","msw","patient navigator","social worker","social work intern","care coordinator","care management associate"] },
   { key: "pediatrics",        label: "Pediatrics",           color: "#FF9F1C", angle: 45,
-    terms: ["pediatrics","neo/perinatal med","pediatrics/allergy","pediatric hematology","ped infectious dis","neonatology","pediatric dermatology","pediatric neurology"] },
+    terms: ["pediatrics","neo/perinatal med","pediatrics/allergy","pediatric hematology","ped infectious dis","neonatology","pediatric dermatology","pediatric neurology","pediatric cardiology","pediatric emergency"] },
   { key: "pharmacy",          label: "Pharmacy",             color: "#2EC4B6", angle: 120,
-    terms: ["pharm intern","pharm resident","pharm tech","pharmacist","pharmd","rph","pharmacy intern","pharmacy resident","pharmacy tech"] },
+    terms: ["pharm intern","pharm resident","pharm tech","pharmacist","pharmd","rph","pharmacy intern","pharmacy resident","pharmacy tech","pharmacy"] },
   { key: "radiation_oncology",label: "Radiation Oncology",   color: "#CB4335", angle: -80,
     terms: ["radiation oncology","radiation therapy"] },
   { key: "radiology",         label: "Radiology",            color: "#0284c7", angle: 180,
-    terms: ["diagnostic radiology","nuclear medicine","nuclear radiology","neuroradiology","radiology","radiology/pediatrics","rad tech","vasc/intrvn radiology","interventional radiology"] },
+    terms: ["diagnostic radiology","nuclear medicine","nuclear radiology","neuroradiology","radiology","radiology/pediatrics","rad tech","vasc/intrvn radiolog","vasc/intrvn radiology","interventional radiology","specialty vascular and interventional radiology"] },
   { key: "scribe",            label: "Scribe",               color: "#AAB7B8", angle: -170,
     terms: ["scribe"] },
   { key: "specialty_other",   label: "Specialty Other",      color: "#D4AC0D", angle: -30,
-    terms: ["certified nurse midwife","dental asst","cln neurophysiology","dentist","dermatology","geneticist","genetic counselor","maternal/fetal med","med geneticist","neurology","ob/gyn","obstetrics","other m.d.","pain management","pain medicine","pmr","podiatrist","sleep medicine","sports medicine","vascular med","vascular neurology","athletic training","epileptologist","gynecology","hyperbaric medicine","hyperbaric technician","interventional pain management","maternal and fetal medicine","medical genetics","micrographic dermatologic surgery","osteopathic manipulative medicine","physical medicine and rehab","podiatry","reproductive endocrinology","no/unknown physician specialty"] },
+    terms: ["certified nurse midwife","dental asst","dentist","dermatology","geneticist","genetic counselor","maternal/fetal med","med geneticist","neurology","ob/gyn","obstetrics","obstetrics/gyn","other m.d.","pain management","pain medicine","pmr","podiatrist","sleep medicine","sports medicine","vascular med","vascular medicine","vascular neurology","athletic training","epileptologist","gynecology","hyperbaric medicine","hyperbaric technician","interventional pain management","maternal and fetal medicine","medical genetics","micrographic dermatologic surgery","osteopathic manipulative medicine","physical medicine and rehab","podiatry","reproductive endocrinology","no/unknown physician specialty","verbal order signer","other"] },
   { key: "surgery_other",     label: "Surgery Other",        color: "#884EA0", angle: -45,
-    terms: ["bariatric surgery","female pelvic medicine","gen vascular surg","hand surg, plast sur","hand surg, ortho","laryngology","ophthalmology","optometrist","ortho tech","ortho - foot and ankle","orthopaedics sports","ortho trauma","orthotist","otolaryngology","prosthetics/orthotics","transplant","transplant surgery","surgery trauma","trauma acs","general trauma surgery","hand surgery","head and neck neck surgery","optometry","orthopaedic tech","vascular surgery","transplant assistant"] },
+    terms: ["bariatric surgery","female pelvic medicine","gen vascular surg","hand surg, plast sur","hand surg, ortho","hand surgery, ortho","hand surgery, otho","laryngology","ophthalmology","optometrist","ortho tech","ortho - foot and ankle","orthopaedics-foot and ankle","orthopaedics sports","ortho trauma","orthopaedic trauma","orthotist","otolaryngology","prosthetics/orthotics","transplant","transplant surgery","surgery trauma","trauma acs","general trauma surgery","head and neck surgery","optometry","orthopaedic tech","vascular surgery","transplant assistant","orthopaedics, spine","ortho spine"] },
   { key: "surgical_oncology", label: "Surgical Oncology",    color: "#7c3aed", angle: -30,
-    terms: ["adult reconstructive surgery","anesthesiologist","anesthesiologists","cardiothoracic surg","colon/rectal surg","crit care med, anes","gynecologic oncology","nurse anesthes","orthopaedic oncology","ortho spine","orthopaedic surgery","plastic surgery","surgery","surg/cardiovascular","surgery crit care","surg/neur crit care","surgery/neurologic","surgery/oncology","surg tech","thoracic surg","urology","anesthesiology","cardiac surgery","certified registered nurse anesthes","colon and rectal surgery","general surgery","gyn oncology","neurosurgery","orthopedics"] },
+    terms: ["adult reconstructive surgery","anesthesiologist","anesthesiologists","anesthesiology","cardiothoracic surg","colon/rectal surg","colon and rectal surgery","gynecologic oncology","gyn oncology","nurse anesthes","certified registered nurse anesthes","orthopaedic oncology","orthopaedic surgery","orthopedics","plastic surgery","surgery","surg/cardiovascular","surgery crit care","surg/neur crit care","surgery/neurologic","surgery/oncology","surg tech","thoracic surg","thoracic surgery","urology","cardiac surgery","neurosurgery","general surgery"] },
   { key: "therapy",           label: "Therapy",              color: "#1ABC9C", angle: 135,
     terms: ["child life","occupational therap","occ therap","respiratory therap","speech pathology","slp","speech pathologist","massage therapy","pulmonary tech","speech therapy","orthoptist","physical therapy assistant","physical therap","pt assist"] },
   { key: "urgent_care",       label: "Urgent Care",          color: "#f97316", angle: -110,
@@ -94,17 +94,23 @@ const GROUP_TERMS_NORM = LEVEL1_GROUPS.map(g => ({
 }));
 
 function classifyNode(n: RawNode): GroupDef[] {
-  const specField = normStr(n.spec);
-  const allFields = [normStr(n.spec), normStr(n.ptype), normStr(n.title)].filter(Boolean);
-  const specMatches = GROUP_TERMS_NORM
-    .filter(({ g }) => g.key !== "other")
-    .filter(({ termsNorm }) => termsNorm.some(tn => hasPhrase(specField, tn)))
-    .map(({ g }) => g as GroupDef);
-  if (specMatches.length) return specMatches;
-  const anyMatch = GROUP_TERMS_NORM
-    .filter(({ g }) => g.key !== "other")
-    .find(({ termsNorm }) => termsNorm.some(tn => allFields.some(fn => hasPhrase(fn, tn))));
-  return anyMatch ? [anyMatch.g as GroupDef] : [FALLBACK_GROUP];
+  const specField  = normStr(n.spec);
+  const titleField = normStr(n.title);
+  const typeField  = normStr(n.ptype);
+  const allFields  = [specField, titleField, typeField].filter(Boolean);
+
+  const matches = new Set<GroupDef>();
+
+  // Priority order: (i) spec, (ii) title, (iii) ptype — all checked for ALL groups
+  for (const { g, termsNorm } of GROUP_TERMS_NORM) {
+    if (g.key === "other") continue;
+    if (termsNorm.some(tn => hasPhrase(specField, tn)))  matches.add(g as GroupDef);
+    if (termsNorm.some(tn => hasPhrase(titleField, tn))) matches.add(g as GroupDef);
+    if (termsNorm.some(tn => hasPhrase(typeField, tn)))  matches.add(g as GroupDef);
+  }
+
+  const result = [...matches];
+  return result.length > 0 ? result : [FALLBACK_GROUP];
 }
 function primaryGroup(matches: GroupDef[]): GroupDef {
   return matches[0] ?? FALLBACK_GROUP;
@@ -643,8 +649,10 @@ export function EgoNetwork({ patientId, accentColor = "#2B6CB0", initialWeek }: 
   const [egoMode,    setEgoMode]    = useState<"weekly" | "cumulative">("weekly");
   const [weekIdx,    setWeekIdx]    = useState(0);
   const [selectedHCP, setSelectedHCP] = useState<string | null>(null);
+  const [tracedHCP,  setTracedHCP]  = useState<string | null>(null);
   const [tt,         setTt]         = useState<TooltipState>({ visible: false, x: 0, y: 0, node: null, isCumulative: false });
   const [playing,    setPlaying]    = useState(false);
+  const [cumulPlayIdx, setCumulPlayIdx] = useState<number | null>(null); // null = show full cumulative
   const playTimer                   = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Load raw ego record (merged: linear data + ego_network weeklySnapshots)
@@ -668,7 +676,9 @@ export function EgoNetwork({ patientId, accentColor = "#2B6CB0", initialWeek }: 
   useEffect(() => {
     setWeekIdx(0);
     setSelectedHCP(null);
+    setTracedHCP(null);
     setEgoMode("weekly");
+    setCumulPlayIdx(null);
     if (playTimer.current) { clearInterval(playTimer.current); playTimer.current = null; }
     setPlaying(false);
   }, [patientId]);
@@ -700,6 +710,23 @@ export function EgoNetwork({ patientId, accentColor = "#2B6CB0", initialWeek }: 
     }, 600);
   }, [allWeeks.length, stopPlay]);
 
+  const startCumulPlay = useCallback(() => {
+    if (!allWeeks.length) return;
+    setCumulPlayIdx(0);
+    setPlaying(true);
+    playTimer.current = setInterval(() => {
+      setCumulPlayIdx(prev => {
+        const next = (prev ?? 0) + 1;
+        if (next >= allWeeks.length) {
+          stopPlay();
+          setCumulPlayIdx(null); // return to full cumulative view
+          return prev;
+        }
+        return next;
+      });
+    }, 500);
+  }, [allWeeks.length, stopPlay]);
+
   useEffect(() => () => { if (playTimer.current) clearInterval(playTimer.current); }, []);
 
   if (!egoRecord || !allWeeks.length) {
@@ -727,11 +754,51 @@ export function EgoNetwork({ patientId, accentColor = "#2B6CB0", initialWeek }: 
   const initCount       = currentSnap?.nodes?.length ?? 0;
   const maxEdgeFreq     = Math.max(...(cumulNet.edges as Array<{freq:number}>).map(e => e.freq ?? 1), 1);
 
+  // ── Trace timeline: for each week, did the tracedHCP appear, and with how many edges? ──
+  const traceTimeline = useMemo(() => {
+    if (!tracedHCP) return null;
+    return allWeeks.map(wk => {
+      const snap = weeklySnapshots[String(wk)];
+      const nodes = (snap?.nodes ?? []) as Record<string,unknown>[];
+      const edges = (snap?.edges ?? []) as Record<string,unknown>[];
+      const node = nodes.find(rawN => {
+        const n = normaliseNode(rawN);
+        return specName(n) === tracedHCP;
+      });
+      if (!node) return { week: wk, present: false, deg: 0, connections: [] as string[] };
+      const normalised = normaliseNode(node);
+      const connectedIds = edges
+        .map(normaliseEdge)
+        .filter(e => {
+          const a = nodes.find(r => normaliseNode(r).id === e.s);
+          const b = nodes.find(r => normaliseNode(r).id === e.t);
+          return (a && specName(normaliseNode(a)) === tracedHCP) ||
+                 (b && specName(normaliseNode(b)) === tracedHCP);
+        })
+        .map(e => {
+          const a = nodes.find(r => normaliseNode(r).id === e.s);
+          const b = nodes.find(r => normaliseNode(r).id === e.t);
+          const peer = a && specName(normaliseNode(a)) !== tracedHCP ? normaliseNode(a) : b ? normaliseNode(b) : null;
+          return peer ? specName(peer) : "";
+        })
+        .filter(Boolean);
+      return { week: wk, present: true, deg: normalised.deg, connections: connectedIds };
+    });
+  }, [tracedHCP, allWeeks, weeklySnapshots]);
+
   // ── Build nodes for current view ──
   const { renderNodes, renderEdges, renderCacheKey, isCumulative } = useMemo(() => {
     if (egoMode === "cumulative") {
-      const nodes: Node[] = cumulNet.nodes.map(n => ({ ...n, groupMatches: classifyNode(n), weekCount: n.weekCount }));
-      return { renderNodes: nodes, renderEdges: cumulNet.edges, renderCacheKey: `${patientId}_cumulative`, isCumulative: true };
+      // If playing cumulative, build network up to cumulPlayIdx week
+      const snapSubset = cumulPlayIdx !== null
+        ? Object.fromEntries(
+            allWeeks.slice(0, cumulPlayIdx + 1).map(w => [String(w), weeklySnapshots[String(w)]])
+          )
+        : weeklySnapshots;
+      const net = cumulPlayIdx !== null ? buildCumulativeNetwork(snapSubset) : cumulNet;
+      const nodes: Node[] = net.nodes.map(n => ({ ...n, groupMatches: classifyNode(n), weekCount: (n as typeof n & {weekCount:number}).weekCount }));
+      const key = cumulPlayIdx !== null ? `${patientId}_cumulative_up_to_${allWeeks[cumulPlayIdx]}` : `${patientId}_cumulative`;
+      return { renderNodes: nodes, renderEdges: net.edges, renderCacheKey: key, isCumulative: true };
     }
     if (!currentSnap?.nodes?.length) {
       return { renderNodes: [], renderEdges: [], renderCacheKey: "", isCumulative: false };
@@ -742,7 +809,7 @@ export function EgoNetwork({ patientId, accentColor = "#2B6CB0", initialWeek }: 
     });
     const edges = (currentSnap.edges as Record<string,unknown>[]).map(normaliseEdge);
     return { renderNodes: nodes, renderEdges: edges, renderCacheKey: `${patientId}_week${currentWeek}`, isCumulative: false };
-  }, [egoMode, currentWeek, currentSnap, cumulNet, patientId]);
+  }, [egoMode, currentWeek, currentSnap, cumulNet, patientId, cumulPlayIdx, allWeeks, weeklySnapshots]);
 
   // ── Solo fallback: no co-access network but HCPs visited ──
   const soloHCPs: SoloHCP[] = useMemo(() => {
@@ -852,13 +919,50 @@ export function EgoNetwork({ patientId, accentColor = "#2B6CB0", initialWeek }: 
         </div>
       )}
 
-      {/* ── CUMULATIVE INFO ── */}
+      {/* ── CUMULATIVE CONTROLS ── */}
       {!isWeeklyActive && (
-        <div style={{ flexShrink: 0, background: "#f0fdf4", border: "1px solid #bbf7d0",
-          borderRadius: 8, padding: "6px 14px", fontSize: 11, color: "#14532d", fontFamily: FONT }}>
-          <strong>{totalUniqueHCPs}</strong> unique HCPs ·{" "}
-          <strong>{cumulNet.edges.length}</strong> co-care relationships ·{" "}
-          <strong>{allWeeks.length}</strong> weeks
+        <div style={{ flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+            <button
+              onClick={() => {
+                if (playing) { stopPlay(); setCumulPlayIdx(null); }
+                else { startCumulPlay(); }
+              }}
+              style={{ border: "none", background: playing ? "#7c3aed" : "#e2e8f0", borderRadius: 6,
+                padding: "3px 10px", fontSize: 12, cursor: "pointer", fontWeight: 700,
+                fontFamily: FONT, color: playing ? "white" : "#1e293b" }}>
+              {playing ? "⏸ Pause" : "▶ Play Growth"}
+            </button>
+            <span style={{ fontSize: 11, color: "#64748b", fontFamily: FONT }}>
+              {playing && cumulPlayIdx !== null
+                ? `Building… Week ${allWeeks[cumulPlayIdx]} / ${maxWeek} · ${renderNodes.length} HCPs`
+                : `${totalUniqueHCPs} unique HCPs · ${cumulNet.edges.length} co-care links · ${allWeeks.length} weeks`}
+            </span>
+            {cumulPlayIdx !== null && !playing && (
+              <button onClick={() => setCumulPlayIdx(null)}
+                style={{ marginLeft: "auto", border: "none", background: "#f1f5f9",
+                  borderRadius: 5, padding: "2px 8px", fontSize: 10,
+                  cursor: "pointer", fontFamily: FONT, color: "#64748b" }}>
+                Show All
+              </button>
+            )}
+          </div>
+          {/* Progress bar for cumulative play */}
+          {cumulPlayIdx !== null && (
+            <div style={{ width: "100%", height: 4, background: "#e2e8f0", borderRadius: 2, overflow: "hidden" }}>
+              <div style={{
+                height: "100%", borderRadius: 2, background: "#7c3aed",
+                width: `${((cumulPlayIdx + 1) / allWeeks.length) * 100}%`,
+                transition: "width 0.4s ease",
+              }}/>
+            </div>
+          )}
+          {cumulPlayIdx === null && (
+            <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0",
+              borderRadius: 8, padding: "5px 12px", fontSize: 11, color: "#14532d", fontFamily: FONT }}>
+              Full accumulated network · press <strong>Play Growth</strong> to watch it build week by week
+            </div>
+          )}
         </div>
       )}
 
@@ -870,11 +974,80 @@ export function EgoNetwork({ patientId, accentColor = "#2B6CB0", initialWeek }: 
               nodes={renderNodes} edges={renderEdges}
               cacheKey={renderCacheKey} isCumulative={isCumulative}
               maxEdgeFreq={maxEdgeFreq}
-              selectedHCP={selectedHCP}
-              onSelectHCP={name => setSelectedHCP(name)}
+              selectedHCP={tracedHCP ?? selectedHCP}
+              onSelectHCP={name => {
+                if (!name) { setSelectedHCP(null); setTracedHCP(null); return; }
+                // In weekly mode, clicking pins a trace; in cumulative just highlight
+                if (isWeeklyActive) {
+                  setTracedHCP(prev => prev === name ? null : name);
+                  setSelectedHCP(null);
+                } else {
+                  setSelectedHCP(prev => prev === name ? null : name);
+                }
+              }}
               onHover={handleHover}
             />}
       </div>
+
+      {/* ── HCP TRACE PANEL ── */}
+      {tracedHCP && traceTimeline && isWeeklyActive && (
+        <div style={{ flexShrink: 0, background: "#fefce8", border: "1.5px solid #fde047",
+          borderRadius: 8, padding: "8px 12px", fontFamily: FONT }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: "#854d0e", letterSpacing: 0.5 }}>
+              🔍 TRACING: {tracedHCP}
+            </span>
+            <span style={{ fontSize: 10, color: "#a16207" }}>
+              · present in {traceTimeline.filter(t => t.present).length} of {allWeeks.length} weeks
+            </span>
+            <button onClick={() => setTracedHCP(null)}
+              style={{ marginLeft: "auto", border: "none", background: "#fef08a",
+                borderRadius: 4, padding: "2px 8px", fontSize: 10,
+                cursor: "pointer", fontFamily: FONT, color: "#854d0e", fontWeight: 700 }}>
+              ✕ Clear
+            </button>
+          </div>
+          {/* Mini timeline dots */}
+          <div style={{ display: "flex", gap: 2, alignItems: "flex-end", flexWrap: "wrap" }}>
+            {traceTimeline.map((t, i) => {
+              const isCur = i === weekIdx;
+              const maxDeg = Math.max(...traceTimeline.filter(x => x.present).map(x => x.deg), 1);
+              const h = t.present ? Math.max(8, Math.round((t.deg / maxDeg) * 28)) : 4;
+              return (
+                <div key={t.week}
+                  title={t.present ? `Wk ${t.week}: ${t.deg} connections` : `Wk ${t.week}: absent`}
+                  onClick={() => { stopPlay(); setWeekIdx(i); }}
+                  style={{
+                    width: 8, height: h,
+                    borderRadius: 2,
+                    background: isCur ? "#b45309" : t.present ? "#f59e0b" : "#e2e8f0",
+                    cursor: "pointer",
+                    border: isCur ? "1.5px solid #92400e" : "none",
+                    transition: "all 0.15s",
+                    flexShrink: 0,
+                  }}
+                />
+              );
+            })}
+          </div>
+          <div style={{ marginTop: 4, fontSize: 9, color: "#a16207", fontFamily: FONT }}>
+            Bar height = connections that week · click bar to jump to that week · <span style={{ color: "#b45309", fontWeight: 700 }}>amber = current week</span>
+          </div>
+          {/* Current week connections */}
+          {traceTimeline[weekIdx]?.present && traceTimeline[weekIdx].connections.length > 0 && (
+            <div style={{ marginTop: 6, fontSize: 10, color: "#78350f", fontFamily: FONT }}>
+              <strong>Wk {currentWeek} connections:</strong>{" "}
+              {traceTimeline[weekIdx].connections.slice(0, 6).join(", ")}
+              {traceTimeline[weekIdx].connections.length > 6 && ` +${traceTimeline[weekIdx].connections.length - 6} more`}
+            </div>
+          )}
+          {traceTimeline[weekIdx] && !traceTimeline[weekIdx].present && (
+            <div style={{ marginTop: 6, fontSize: 10, color: "#b45309", fontFamily: FONT }}>
+              ⚠ Not active in Week {currentWeek}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── LEGEND ── */}
       <div style={{ flexShrink: 0, padding: "6px 10px", background: "#f8fafc",
