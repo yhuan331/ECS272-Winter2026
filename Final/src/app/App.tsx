@@ -107,25 +107,25 @@ function ColHeader({label,color,id,pt,avgRisk,totalHCP,numWeeks,sharedWeek,onCle
   return(
     <div style={{background:color,padding:"10px 16px",
       display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",flexShrink:0}}>
-      <span style={{background:"rgba(255,255,255,.22)",color:"#fff",fontSize:11,fontWeight:800,
+      <span style={{background:"rgba(255,255,255,.22)",color:"#fff",fontSize:15,fontWeight:800,
         fontFamily:FONT,borderRadius:5,padding:"3px 10px",letterSpacing:1}}>{label}</span>
       <span style={{color:"#fff",fontSize:16,fontWeight:800,fontFamily:FONT}}>{id}</span>
       {pt&&<>
-        <span style={{color:"rgba(255,255,255,.75)",fontSize:11,fontFamily:FONT,textTransform:"uppercase"}}>{pt.cancer}</span>
-        <span style={{fontSize:11,fontWeight:800,fontFamily:FONT,
+        <span style={{color:"rgba(255,255,255,.75)",fontSize:15,fontFamily:FONT,textTransform:"uppercase"}}>{pt.cancer}</span>
+        <span style={{fontSize:15,fontWeight:800,fontFamily:FONT,
           color:pt.survived?"#86EFAC":"#FCA5A5"}}>{pt.survived?"SURVIVED":"DECEASED"}</span>
-        <span style={{color:"rgba(255,255,255,.85)",fontSize:11,fontFamily:FONT}}>
+        <span style={{color:"rgba(255,255,255,.85)",fontSize:15,fontFamily:FONT}}>
           Risk <strong>{avgRisk}%</strong>
         </span>
-        <span style={{color:"rgba(255,255,255,.85)",fontSize:11,fontFamily:FONT}}>{totalHCP} HCPs</span>
+        <span style={{color:"rgba(255,255,255,.85)",fontSize:15,fontFamily:FONT}}>{totalHCP} HCPs</span>
       </>}
       <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
         {sharedWeek!=null?(
           <>
-            <span style={{background:"rgba(255,255,255,.25)",color:"#fff",fontSize:11,fontWeight:800,
+            <span style={{background:"rgba(255,255,255,.25)",color:"#fff",fontSize:15,fontWeight:800,
               fontFamily:FONT,borderRadius:5,padding:"3px 10px"}}>WEEK {sharedWeek}</span>
             <button onClick={onClearWeek} style={{background:"rgba(255,255,255,.15)",border:"none",
-              borderRadius:5,padding:"3px 10px",cursor:"pointer",color:"#fff",fontSize:10,fontFamily:FONT}}>
+              borderRadius:5,padding:"3px 10px",cursor:"pointer",color:"#fff",fontSize:15,fontFamily:FONT}}>
               ✕ clear
             </button>
           </>
@@ -134,14 +134,14 @@ function ColHeader({label,color,id,pt,avgRisk,totalHCP,numWeeks,sharedWeek,onCle
             <div style={{width:52,height:5,background:"rgba(255,255,255,.25)",borderRadius:3,overflow:"hidden"}}>
               <div style={{height:"100%",width:`${pct}%`,background:"rgba(255,255,255,.9)",borderRadius:3}}/>
             </div>
-            <span style={{color:"rgba(255,255,255,.85)",fontSize:11,fontWeight:700,fontFamily:FONT}}>{numWeeks}w</span>
+            <span style={{color:"rgba(255,255,255,.85)",fontSize:15,fontWeight:700,fontFamily:FONT}}>{numWeeks}w</span>
           </>
         )}
         {onRemove&&(
           <button onClick={onRemove} style={{
             marginLeft:4,background:"rgba(255,255,255,.15)",border:"2px solid rgba(255,255,255,.4)",
             borderRadius:6,padding:"4px 12px",cursor:"pointer",
-            color:"#fff",fontSize:10,fontFamily:FONT,fontWeight:800,letterSpacing:.8}}>
+            color:"#fff",fontSize:15,fontFamily:FONT,fontWeight:800,letterSpacing:.8}}>
             ✕ REMOVE
           </button>
         )}
@@ -149,8 +149,9 @@ function ColHeader({label,color,id,pt,avgRisk,totalHCP,numWeeks,sharedWeek,onCle
     </div>
   );
 }
-function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}){
+function WeekDetail({data,color,mode,compareMode=false}:{data:WeekData;color:string;mode:ViewMode;compareMode?:boolean}){
   const [expandedSurrogateGroups, setExpandedSurrogateGroups] = useState<Set<string>>(new Set());
+  const sz = (base: number) => (compareMode ? Math.max(base, 15) : base);
   const toggleSurrogateGroup = (name: string) => {
     setExpandedSurrogateGroups(prev => {
       const next = new Set(prev);
@@ -170,7 +171,7 @@ function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}
             ?`RISK ${(data.riskScore*100).toFixed(1)}%`
             :`Δ ${data.probDelta>=0?"+":""}${(data.probDelta*100).toFixed(2)}%`}
         </span>
-        <span style={{marginLeft:"auto",color:data.spikeColor,fontSize:14,fontWeight:800,fontFamily:FONT}}>
+        <span style={{marginLeft:"auto",color:data.spikeColor,fontSize:sz(14),fontWeight:800,fontFamily:FONT}}>
           {data.probDelta>.005?"↑ RISING":data.probDelta<-.005?"↓ FALLING":"→ STABLE"}
         </span>
       </div>
@@ -180,7 +181,7 @@ function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}
         <Stat label="HCP Types"      value={String((data.hcpNames??[]).length)} color={color}/>
       </div>
       <div style={{marginBottom:14}}>
-        <div style={{color:"#0F172A",fontSize:13,fontWeight:800,letterSpacing:1,marginBottom:8,fontFamily:FONT}}>
+        <div style={{color:"#0F172A",fontSize:sz(13),fontWeight:800,letterSpacing:1,marginBottom:8,fontFamily:FONT}}>
           ACTIVE SPECIALTIES
         </div>
         <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
@@ -203,7 +204,7 @@ function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}
                     : `2px solid ${g0Color}44`,
                   borderRadius:5, padding:"4px 11px",
                   color: g0Color,
-                  fontSize:12, fontFamily:FONT, fontWeight:700,
+                  fontSize:sz(12), fontFamily:FONT, fontWeight:700,
                   display:"inline-flex", alignItems:"center", gap:4,
                 }}>
                   {g1Color && (
@@ -216,14 +217,14 @@ function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}
               );
             })}
           {(!(data.hcpSnaps?.length||data.hcpNames?.length))&&
-            <span style={{color:"#94A3B8",fontSize:12,fontFamily:FONT}}>No specialty data</span>}
+            <span style={{color:"#94A3B8",fontSize:sz(12),fontFamily:FONT}}>No specialty data</span>}
         </div>
       </div>
       <div>
-        <div style={{color:"#0F172A",fontSize:13,fontWeight:800,letterSpacing:1,marginBottom:6,fontFamily:FONT}}>
+        <div style={{color:"#0F172A",fontSize:sz(13),fontWeight:800,letterSpacing:1,marginBottom:6,fontFamily:FONT}}>
          FEATURE IMPORTANCE WEIGHTS
         </div>
-        <div style={{color:"#64748B",fontSize:12,marginBottom:8,fontFamily:FONT}}>
+        <div style={{color:"#64748B",fontSize:sz(12),marginBottom:8,fontFamily:FONT}}>
           Features active this week · bar = |contribution| this week · red raises risk · green protective
         </div>
         {(()=>{
@@ -318,7 +319,7 @@ function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}
           });
 
           if (sortedGroups.length === 0) return (
-            <span style={{color:"#94A3B8",fontSize:11,fontFamily:FONT}}>No surrogate data for this week</span>
+            <span style={{color:"#94A3B8",fontSize:sz(11),fontFamily:FONT}}>No surrogate data for this week</span>
           );
 
           const maxC = Math.max(...sortedGroups.map(g => Math.abs(g.totalContrib)), 0.001);
@@ -344,7 +345,7 @@ function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}
                   <div style={{width:10,height:10,borderRadius:2,background:group.color,flexShrink:0}}/>
 
                   {/* Active/total badge */}
-                  <span style={{fontSize:9,color:group.color,fontWeight:800,flexShrink:0,
+                  <span style={{fontSize:sz(9),color:group.color,fontWeight:800,flexShrink:0,
                     background:group.color+"18",borderRadius:3,padding:"1px 6px",
                     border:`1px solid ${group.color}33`,minWidth:24,textAlign:"center"}}>
                     {activeCount}/{group.children.length}
@@ -353,7 +354,7 @@ function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{color:group.active?group.color:"#94A3B8",fontSize:15,
                       fontFamily:FONT,fontWeight:800,letterSpacing:0.3}}>{group.label}</div>
-                    <div style={{color:"#434d5b",fontSize:11,fontFamily:FONT,marginTop:1,
+                    <div style={{color:"#434d5b",fontSize:sz(11),fontFamily:FONT,marginTop:1,
                       overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                       {group.children.filter(c=>c.active).slice(0,3).map(c=>c.label).join(" · ")}
                       {activeCount > 3 ? ` +${activeCount-3}` : ""}
@@ -364,12 +365,12 @@ function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}
                   <div style={{width:72,height:6,background:"#F1F5F9",borderRadius:3,overflow:"hidden",flexShrink:0}}>
                     <div style={{height:"100%",width:group.active?barW:0,background:col,borderRadius:3,transition:"width .2s"}}/>
                   </div>
-                  <span style={{color:col,fontSize:13,fontWeight:800,minWidth:52,
+                  <span style={{color:col,fontSize:sz(13),fontWeight:800,minWidth:52,
                     textAlign:"right",fontFamily:FONT,flexShrink:0}}>
                     {group.active ? `${group.totalContrib>=0?"+":""}${group.totalContrib.toFixed(3)}`
-                      : <span style={{color:"#CBD5E1",fontWeight:400,fontSize:10}}>—</span>}
+                      : <span style={{color:"#CBD5E1",fontWeight:400,fontSize:sz(10)}}>—</span>}
                   </span>
-                  <span style={{color:"#94A3B8",fontSize:10,flexShrink:0,
+                  <span style={{color:"#94A3B8",fontSize:sz(10),flexShrink:0,
                     transform:isExpanded?"rotate(90deg)":"rotate(0)",
                     transition:"transform 0.15s",display:"inline-block"}}>▶</span>
                 </div>
@@ -399,7 +400,7 @@ function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}
                           }}/>
                           <div style={{flex:1,minWidth:0}}>
                             <div style={{display:"flex",alignItems:"center",gap:4}}>
-                              <span style={{color:child.active?"#1e293b":"#94A3B8",fontSize:14,
+                              <span style={{color:child.active?"#1e293b":"#94A3B8",fontSize:sz(14),
                                 fontFamily:FONT,fontWeight:child.active?600:400,
                                 overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                                 {child.label}
@@ -415,7 +416,7 @@ function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}
                               ))}
                             </div>
                             {child.active && (
-                              <div style={{color:"#3e4754",fontSize:11,fontFamily:FONT}}>
+                              <div style={{color:"#3e4754",fontSize:sz(11),fontFamily:FONT}}>
                                 val={child.totalValue.toFixed(1)} · w={child.weight>=0?"+":""}{child.weight.toFixed(3)}
                               </div>
                             )}
@@ -423,7 +424,7 @@ function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}
                           <div style={{width:72,height:4,background:"#F1F5F9",borderRadius:2,overflow:"hidden",flexShrink:0}}>
                             <div style={{height:"100%",width:child.active?cBarW:0,background:cCol,borderRadius:2}}/>
                           </div>
-                          <span style={{color:cCol,fontSize:13,fontWeight:700,
+                          <span style={{color:cCol,fontSize:sz(13),fontWeight:700,
                             minWidth:48,textAlign:"right",fontFamily:FONT,flexShrink:0}}>
                             {child.active?`${child.totalContrib>=0?"+":""}${child.totalContrib.toFixed(3)}`:"—"}
                           </span>
@@ -438,7 +439,7 @@ function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}
         })()}
         {data.topContrib?.length > 0 &&
           (data.topContrib.filter(s => s.value !== 0).length === 0) && (
-          <div style={{padding:"8px 0",color:"#94A3B8",fontSize:11,fontFamily:FONT}}>
+          <div style={{padding:"8px 0",color:"#94A3B8",fontSize:sz(11),fontFamily:FONT}}>
             No features active this week — minimal care contact.
           </div>
         )}
@@ -498,10 +499,10 @@ function CompareGlyph({weeklySnap,surgeonSnap,totalHCP,selectedWeek,onSelectWeek
   return(
     <div style={{height:"100%",background:"#fff",border:"2px solid #E2E8F0",borderRadius:10,display:"flex",flexDirection:"column"}}>
       <div style={{display:"flex",alignItems:"center",padding:"7px 14px",borderBottom:"2px solid #E2E8F0",flexShrink:0}}>
-        <span style={{color:accent,fontSize:11,fontWeight:800,fontFamily:FONT,letterSpacing:1}}>
+        <span style={{color:accent,fontSize:15,fontWeight:800,fontFamily:FONT,letterSpacing:1}}>
           {mode==="prob"?"GNN DEATH PROB":"Δ PROBABILITY"}
         </span>
-        <span style={{marginLeft:"auto",color:"#94A3B8",fontSize:10,fontFamily:FONT}}>
+        <span style={{marginLeft:"auto",color:"#94A3B8",fontSize:15,fontFamily:FONT}}>
           {n}w / {safeMax}w ({arcPct}%)
         </span>
       </div>
@@ -523,15 +524,18 @@ function CompareGlyph({weeklySnap,surgeonSnap,totalHCP,selectedWeek,onSelectWeek
             <path key={si} d={`M${CX},${CY} L${p1.x},${p1.y} A${CENTER_R},${CENTER_R} 0 ${sw>180?1:0} 1 ${p2.x},${p2.y} Z`} fill={sg.f}/>);})}
           {[-90,30,150,270].map(a=>{const p=polarToCart(CX,CY,CENTER_R,a);return<line key={a} x1={CX} y1={CY} x2={p.x} y2={p.y} stroke="#E2E8F0" strokeWidth={1}/>;}) }
           {(()=>{const lp=polarToCart(CX,CY,CENTER_R*.45,-30);const vp=polarToCart(CX,CY,CENTER_R*.62,-30);return(<g>
-            <text x={lp.x} y={lp.y-3} textAnchor="middle" dominantBaseline="central" fill="#94A3B8" fontSize={10} fontFamily={FONT}>UNIQUE HCP</text>
-            <text x={vp.x} y={vp.y+3} textAnchor="middle" dominantBaseline="central" fill={accent} fontSize={18} fontFamily={FONT} fontWeight={800}>{totalHCP}</text>
+            <text x={lp.x-6} y={lp.y-3} textAnchor="middle" dominantBaseline="central" fill="#94A3B8" fontSize={9} fontFamily={FONT}>TOTAL UNIQUE HCP</text>
+            <text x={vp.x} y={vp.y-2} textAnchor="middle" dominantBaseline="central" fill={accent} fontSize={16} fontFamily={FONT} fontWeight={700}>{totalHCP}</text>
           </g>);})()}
           {(()=>{const lp=polarToCart(CX,CY,CENTER_R*.45,90);const vp=polarToCart(CX,CY,CENTER_R*.62,90);return(<g>
-            <text x={lp.x} y={lp.y-3} textAnchor="middle" dominantBaseline="central" fill="#94A3B8" fontSize={10} fontFamily={FONT}>VOLATILITY</text>
-            <text x={vp.x} y={vp.y+3} textAnchor="middle" dominantBaseline="central" fill="#38A169" fontSize={14} fontFamily={FONT} fontWeight={800}>{avgDelta}/wk</text>
+            <text x={lp.x+6} y={lp.y-8} textAnchor="middle" dominantBaseline="central" fill="#94A3B8" fontSize={9} fontFamily={FONT}>TEAM VOLATILITY</text>
+            <text x={vp.x} y={vp.y+10} textAnchor="middle" dominantBaseline="central" fill="#38A169" fontSize={13} fontFamily={FONT} fontWeight={700}>{avgDelta}/wk</text>
           </g>);})()}
           {(()=>{const lp=polarToCart(CX,CY,CENTER_R*.32,210);return(<g>
-            <text x={lp.x} y={lp.y+1} textAnchor="middle" dominantBaseline="central" fill="#D69E2E" fontSize={12} fontFamily={FONT} fontWeight={700}>{avgRisk}% avg</text>
+            <text x={lp.x} y={lp.y+1} textAnchor="middle" dominantBaseline="central" fill="#D69E2E" fontSize={11} fontFamily={FONT}>
+              <tspan x={lp.x-15} dy="0">Avg Risk</tspan>
+              <tspan x={lp.x-15} dy="1.6em">{avgRisk}%</tspan>
+            </text>
           </g>);})()}
           <circle cx={CX} cy={CY} r={BASE_R} fill="none" stroke="#CBD5E1" strokeWidth={1.5}/>
           {spikes.map((s,i)=>{
@@ -556,12 +560,12 @@ function CompareGlyph({weeklySnap,surgeonSnap,totalHCP,selectedWeek,onSelectWeek
           <path d={oPath} fill="none" stroke="rgba(0,0,0,.06)" strokeWidth={.8}/>
           {hovIdx!==null&&hovIdx>0&&<line x1={oPts[hovIdx-1].x} y1={oPts[hovIdx-1].y} x2={oPts[hovIdx].x} y2={oPts[hovIdx].y} stroke="#0F172A" strokeWidth={2} strokeLinecap="round" opacity={.5}/>}
           {(()=>{const s=polarToCart(CX,CY,BASE_R,0);const l=polarToCart(CX,CY,BASE_R+142,0);return(<g>
-            <line x1={s.x} y1={s.y} x2={l.x} y2={l.y} stroke="#94A3B8" strokeWidth={1} strokeDasharray="4,4"/>
-            <text x={l.x} y={l.y} textAnchor="middle" fill="#94A3B8" fontSize={10} fontFamily={FONT}>week 0</text>
+            <line x1={s.x} y1={s.y} x2={l.x} y2={l.y} stroke="#4d5662" strokeWidth={1} strokeDasharray="4,4"/>
+            <text x={l.x} y={l.y} textAnchor="middle" fill="#4d5662" fontSize={10} fontFamily={FONT}>week 0</text>
           </g>);})()}
           {n>1&&(()=>{const la=(n-1)*apw;const s=polarToCart(CX,CY,BASE_R,la);const l=polarToCart(CX,CY,BASE_R+144,la);return(<g>
-            <line x1={s.x} y1={s.y} x2={l.x} y2={l.y} stroke="#CBD5E1" strokeWidth={1} strokeDasharray="4,4"/>
-            <text x={l.x} y={l.y} textAnchor="middle" fill="#94A3B8" fontSize={10} fontFamily={FONT} dominantBaseline="central">last w{n-1}</text>
+            <line x1={s.x} y1={s.y} x2={l.x} y2={l.y} stroke="#4d5662" strokeWidth={1} strokeDasharray="4,4"/>
+            <text x={l.x} y={l.y} textAnchor="middle" fill="#4d5662" fontSize={10} fontFamily={FONT} dominantBaseline="central">last w{n-1}</text>
           </g>);})()}
           {showSurgeonTicks && surgeonSnap.map(wn=>{
             const idx=weeklySnap.findIndex(w=>w.week===wn);if(idx<0)return null;
@@ -694,7 +698,7 @@ function CompareView({
 
             {/* Week detail */}
             {selWeekDataA
-              ? <WeekDetail data={selWeekDataA} color="#2B6CB0" mode={mode}/>
+              ? <WeekDetail data={selWeekDataA} color="#2B6CB0" mode={mode} compareMode/>
               : <div style={{padding:"12px 14px",background:"#fff",border:"2px solid #E2E8F0",
                   borderRadius:8,color:"#64748B",fontSize:11,fontFamily:FONT,lineHeight:1.6}}>
                   <strong style={{color:"#2B6CB0"}}>Click any spike</strong> on the radial above — both patients will sync to that week simultaneously.
@@ -752,7 +756,7 @@ function CompareView({
 
             {/* Week detail */}
             {selWeekDataB
-              ? <WeekDetail data={selWeekDataB} color="#6B46C1" mode={mode}/>
+              ? <WeekDetail data={selWeekDataB} color="#6B46C1" mode={mode} compareMode/>
               : <div style={{padding:"12px 14px",background:"#fff",border:"2px solid #E2E8F0",
                   borderRadius:8,color:"#64748B",fontSize:11,fontFamily:FONT,lineHeight:1.6}}>
                   Waiting for week selection — click any spike in either column.
