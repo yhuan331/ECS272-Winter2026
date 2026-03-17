@@ -816,8 +816,18 @@ export function EgoNetwork({ patientId, accentColor = "#2B6CB0", initialWeek }: 
   // ── Build cumulative stats ──
   const cumulNet       = useMemo(() => buildCumulativeNetwork(weeklySnapshots), [weeklySnapshots]);
   const totalUniqueHCPs = cumulNet.nodes.length;
-  const totalNodes      = Object.values(weeklySnapshots)
-    .reduce((mx, s) => Math.max(mx, s?.nodes?.length ?? 0), 0);
+  const { peakNodes, peakWeek } = useMemo(() => {
+    let maxNodes = -1;
+    let maxWeek = allWeeks[0] ?? 0;
+    allWeeks.forEach(wk => {
+      const count = weeklySnapshots[String(wk)]?.nodes?.length ?? 0;
+      if (count > maxNodes) {
+        maxNodes = count;
+        maxWeek = wk;
+      }
+    });
+    return { peakNodes: Math.max(0, maxNodes), peakWeek: maxWeek };
+  }, [allWeeks, weeklySnapshots]);
   const initCount       = currentSnap?.nodes?.length ?? 0;
   const maxEdgeFreq     = Math.max(...(cumulNet.edges as Array<{freq:number}>).map(e => e.freq ?? 1), 1);
 
@@ -943,15 +953,15 @@ export function EgoNetwork({ patientId, accentColor = "#2B6CB0", initialWeek }: 
           {[
             { id: "active-now", val: String(initCount),        label: "Active now",    col: "#0284c7", bg: "#f0f9ff", bdr: "#bae6fd" },
             { id: "unique",     val: String(totalUniqueHCPs),   label: "Unique HCPs",  col: "#0f172a", bg: "#f0f9ff", bdr: "#bae6fd" },
-            { id: "peak",       val: String(totalNodes),        label: "Peak/week",    col: "#0f172a", bg: "#f0f9ff", bdr: "#bae6fd" },
+            { id: "peak",       val: String(peakNodes),         label: `Peak @ Wk ${peakWeek}`, col: "#000000", bg: "#f0f9ff", bdr: "#bae6fd" },
             { id: "delta",      val: `GCN ${dStr}`,             label: "Risk delta",   col: dCol,       bg: "#fff7ed", bdr: "#fed7aa" },
           ].map(chip => (
             <div key={chip.id} style={{ background: chip.bg, border: `1px solid ${chip.bdr}`,
               borderRadius: 8, padding: "4px 10px", display: "flex", flexDirection: "column",
               alignItems: "center", flexShrink: 0 }}>
-              <span style={{ fontSize: 17, fontWeight: 800, color: chip.col,
+              <span style={{ fontSize: 20, fontWeight: 800, color: chip.col,
                 fontFamily: FONT, lineHeight: 1.1, whiteSpace: "nowrap" }}>{chip.val}</span>
-              <span style={{ fontSize: 10, color: "#475569", fontFamily: FONT,
+              <span style={{ fontSize: 15, color: "#475569", fontFamily: FONT,
                 textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap", fontWeight: 700 }}>{chip.label}</span>
             </div>
           ))}
@@ -975,14 +985,14 @@ export function EgoNetwork({ patientId, accentColor = "#2B6CB0", initialWeek }: 
             <button
               onClick={() => { if (playing) stopPlay(); else { if (weekIdx >= allWeeks.length - 1) setWeekIdx(0); startPlay(); } }}
               style={{ border: "none", background: playing ? "#0284c7" : "#e2e8f0", borderRadius: 6,
-                padding: "5px 14px", fontSize: 13, cursor: "pointer", fontWeight: 700,
+                padding: "5px 14px", fontSize: 15, cursor: "pointer", fontWeight: 700,
                 fontFamily: FONT, color: playing ? "white" : "#1e293b" }}>
               {playing ? "⏸ Pause" : "▶ Play"}
             </button>
-            <span style={{ fontSize: 14, fontWeight: 700, color: "#1e293b", fontFamily: FONT }}>
+            <span style={{ fontSize: 20, fontWeight: 700, color: "#1e293b", fontFamily: FONT }}>
               Week {currentWeek}
             </span>
-            <span style={{ fontSize: 13, color: "#475569", fontFamily: FONT, fontWeight: 600 }}>
+            <span style={{ fontSize: 17, color: "#475569", fontFamily: FONT, fontWeight: 600 }}>
               · {initCount} HCPs active
             </span>
           </div>
@@ -1010,11 +1020,11 @@ export function EgoNetwork({ patientId, accentColor = "#2B6CB0", initialWeek }: 
                 else { startCumulPlay(); }
               }}
               style={{ border: "none", background: playing ? "#7c3aed" : "#e2e8f0", borderRadius: 6,
-                padding: "5px 14px", fontSize: 13, cursor: "pointer", fontWeight: 700,
+                padding: "5px 14px", fontSize: 15, cursor: "pointer", fontWeight: 700,
                 fontFamily: FONT, color: playing ? "white" : "#1e293b" }}>
               {playing ? "⏸ Pause" : "▶ Play Growth"}
             </button>
-            <span style={{ fontSize: 13, color: "#475569", fontFamily: FONT, fontWeight: 600 }}>
+            <span style={{ fontSize: 15, color: "#475569", fontFamily: FONT, fontWeight: 600 }}>
               {playing && cumulPlayIdx !== null
                 ? `Building… Week ${allWeeks[cumulPlayIdx]} / ${maxWeek} · ${renderNodes.length} HCPs`
                 : `${totalUniqueHCPs} unique HCPs · ${cumulNet.edges.length} co-care links · ${allWeeks.length} weeks`}
@@ -1022,7 +1032,7 @@ export function EgoNetwork({ patientId, accentColor = "#2B6CB0", initialWeek }: 
             {cumulPlayIdx !== null && !playing && (
               <button onClick={() => setCumulPlayIdx(null)}
                 style={{ marginLeft: "auto", border: "none", background: "#f1f5f9",
-                  borderRadius: 5, padding: "3px 10px", fontSize: 12,
+                  borderRadius: 5, padding: "3px 10px", fontSize: 14,
                   cursor: "pointer", fontFamily: FONT, color: "#475569", fontWeight: 600 }}>
                 Show All
               </button>
@@ -1039,7 +1049,7 @@ export function EgoNetwork({ patientId, accentColor = "#2B6CB0", initialWeek }: 
           )}
           {cumulPlayIdx === null && (
             <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0",
-              borderRadius: 8, padding: "6px 14px", fontSize: 13, color: "#14532d", fontFamily: FONT, fontWeight: 600 }}>
+              borderRadius: 8, padding: "6px 14px", fontSize: 15, color: "#14532d", fontFamily: FONT, fontWeight: 600 }}>
               Full accumulated network · press <strong>Play Growth</strong> to watch it build week by week
             </div>
           )}

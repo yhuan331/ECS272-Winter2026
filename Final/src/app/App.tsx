@@ -85,11 +85,11 @@ function PatientBadge({pt,label,color,onRemove}:{pt:PatientDot;label:string;colo
 }
 
 // ── black section label bar ───────────────────────────────────────────────────
-function BlockLabel({text,right}:{text:string;right?:React.ReactNode}){
+function BlockLabel({text,right,titleFontSize=13}:{text:string;right?:React.ReactNode;titleFontSize?:number}){
   return(
     <div style={{background:"#0F172A",borderRadius:"8px 8px 0 0",
       padding:"10px 16px",display:"flex",alignItems:"center",gap:10}}>
-      <span style={{color:"white",fontSize:13,fontWeight:800,fontFamily:FONT,letterSpacing:1.2,flex:1}}>
+      <span style={{color:"white",fontSize:titleFontSize,fontWeight:800,fontFamily:FONT,letterSpacing:1.2,flex:1}}>
         {text}
       </span>
       {right}
@@ -711,10 +711,10 @@ function CompareView({
 
             {/* Ego network */}
             <div style={{flexShrink:0}}>
-              <BlockLabel text="EGO CARE NETWORK"
+              <BlockLabel text="EGO CARE NETWORK" titleFontSize={15}
                 right={sharedWeek!=null
-                  ?<span style={{color:"#60A5FA",fontSize:10,fontFamily:FONT,fontWeight:700}}>WEEK {sharedWeek}</span>
-                  :<span style={{color:"#94A3B8",fontSize:10,fontFamily:FONT}}>click a spike to jump to week</span>}/>
+                  ?<span style={{color:"#60A5FA",fontSize:12,fontFamily:FONT,fontWeight:700}}>WEEK {sharedWeek}</span>
+                  :<span style={{color:"#94A3B8",fontSize:12,fontFamily:FONT}}>click a spike to jump to week</span>}/>
               <div style={{border:"2px solid #0F172A",borderTop:"none",borderRadius:"0 0 8px 8px"}}>
                 <EgoNetwork key={`${focusId}-${sharedWeek??""}`} patientId={focusId} accentColor="#2B6CB0" initialWeek={sharedWeek??undefined}/>
               </div>
@@ -769,10 +769,10 @@ function CompareView({
 
             {/* Ego network */}
             <div style={{flexShrink:0}}>
-              <BlockLabel text="EGO CARE NETWORK"
+              <BlockLabel text="EGO CARE NETWORK" titleFontSize={15}
                 right={sharedWeek!=null
-                  ?<span style={{color:"#C084FC",fontSize:10,fontFamily:FONT,fontWeight:700}}>WEEK {sharedWeek}</span>
-                  :<span style={{color:"#94A3B8",fontSize:10,fontFamily:FONT}}>click a spike to jump to week</span>}/>
+                  ?<span style={{color:"#C084FC",fontSize:12,fontFamily:FONT,fontWeight:700}}>WEEK {sharedWeek}</span>
+                  :<span style={{color:"#94A3B8",fontSize:12,fontFamily:FONT}}>click a spike to jump to week</span>}/>
               <div style={{border:"2px solid #0F172A",borderTop:"none",borderRadius:"0 0 8px 8px"}}>
                 <EgoNetwork key={`${cmpId}-${sharedWeek??""}`} patientId={cmpId} accentColor="#6B46C1" initialWeek={sharedWeek??undefined}/>
               </div>
@@ -793,6 +793,7 @@ export default function App(){
   const [ready,          setReady]          = useState(false);
   const [focusId,        setFocusId]        = useState("");
   const [cmpId,          setCmpId]          = useState("");
+  const [selectionConfirmed, setSelectionConfirmed] = useState(false);
   const [tick,           setTick]           = useState(0);
   const [cmpTick,        setCmpTick]        = useState(0);
   const [mode,           setMode]           = useState<ViewMode>("delta");
@@ -836,16 +837,34 @@ export default function App(){
     });
   },[]);
 
+  const clearAllSelections = () => {
+    clearComparePatient();
+    setFocusId("");
+    setCmpId("");
+    setCmpSnap([]);
+    setCmpSurgSnap([]);
+    setCmpHCPSnap(0);
+    setSelWeek(null);
+    setSharedWeek(null);
+    setSelectionConfirmed(false);
+    setTick(t=>t+1);
+    setView("overview");
+  };
+
   const handleSelect=(id:string)=>{
-    if(id===focusId){
-      setFocusId("");setSelWeek(null);setSharedWeek(null);setTick(t=>t+1);
-      setView("overview");
+    if(id===focusId || id===cmpId){
+      clearAllSelections();
       return;
     }
     switchPatient(id,_temporal,_egoMap as never);
     setFocusId(id);setSelWeek(null);setSharedWeek(null);setTick(t=>t+1);
+    setSelectionConfirmed(false);
   };
   const handleCompare=(id:string)=>{
+    if(id===cmpId){
+      clearAllSelections();
+      return;
+    }
     if(id===focusId) return;
     switchComparePatient(id,_temporal,_egoMap as never);
     setCmpId(id);setSharedWeek(null);
@@ -853,11 +872,10 @@ export default function App(){
     setCmpSurgSnap([...compareSurgeonEvents]);
     setCmpHCPSnap(compareTotalHCP);
     setCmpTick(t=>t+1);
-    setView("compare");
+    setSelectionConfirmed(false);
   };
   const handleClearCompare=()=>{
-    clearComparePatient();setCmpId("");setCmpSnap([]);setCmpSurgSnap([]);setCmpHCPSnap(0);
-    setSharedWeek(null);setView("overview");
+    clearAllSelections();
   };
 
   if(!ready) return(
@@ -879,6 +897,17 @@ export default function App(){
 
   // Has a patient been selected yet?
   const patientSelected = !!focusId;
+  const showOverviewDetail = patientSelected && selectionConfirmed;
+
+  const handleConfirmSelection = () => {
+    if (!focusId) return;
+    if (cmpId) {
+      setView("compare");
+      setSelectionConfirmed(true);
+      return;
+    }
+    setSelectionConfirmed(true);
+  };
 
   return(
     <div style={{width:"100%",height:"100vh",background:"#F1F5F9",fontFamily:FONT,
@@ -886,9 +915,9 @@ export default function App(){
 
       {/* ══ TOPBAR ════════════════════════════════════════════════════════════ */}
       <div style={{
-        flexShrink:0,background:"#0F172A",height:52,
+        flexShrink:0,background:"#FFFFFF",height:52,
         display:"flex",alignItems:"center",padding:"0 20px",gap:12,
-        boxShadow:"0 2px 12px rgba(0,0,0,.35)",zIndex:100,
+        boxShadow:"0 1px 6px rgba(15,23,42,.12)",zIndex:100,
       }}>
         {/* Navigation buttons — compare mode */}
         {(view==="compare"||view==="whatif")&&(
@@ -928,20 +957,18 @@ export default function App(){
           </button>
         )}
 
-        {/* Mode toggle */}
-        <div style={{display:"flex",gap:0,background:"#FFFFFF10",borderRadius:7,padding:2,marginLeft:6,flexShrink:0}}>
-          {(["delta","prob"] as const).map(m=>(
-            <button key={m} onClick={()=>setMode(m)} style={{
-              padding:"4px 12px",borderRadius:5,cursor:"pointer",
-              background:mode===m?"#FFFFFF":"transparent",border:"none",
-              color:mode===m?"#0F172A":"#64748B",
-              fontSize:10,fontFamily:FONT,fontWeight:800,letterSpacing:.8,transition:"all .1s",
-            }}>{m==="delta"?"Δ PROB":"RISK %"}</button>
-          ))}
-        </div>
-
         {/* Patient chips — right side */}
         <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
+          {view==="overview" && focusId && !selectionConfirmed && (
+            <button onClick={handleConfirmSelection} style={{
+              padding:"7px 14px",borderRadius:6,cursor:"pointer",
+              background:"#0F172A",
+              border:"2px solid #0F172A",
+              color:"#fff",fontSize:11,fontFamily:FONT,fontWeight:800,letterSpacing:.8,
+            }}>
+              {cmpId ? "CONFIRM COMPARISON VIEW →" : "CONFIRM PATIENT VIEW →"}
+            </button>
+          )}
           {focusPt&&<PatientBadge pt={focusPt} label="A" color="#2B6CB0"/>}
           {cmpPt&&<PatientBadge pt={cmpPt} label="B" color="#6B46C1" onRemove={handleClearCompare}/>}
         </div>
@@ -958,9 +985,9 @@ export default function App(){
           {/* LEFT: Scatter — full width before patient, 45% after */}
           <div style={{
             flexShrink:0,
-            width: patientSelected ? "45%" : "100%",
+            width: showOverviewDetail ? "45%" : "100%",
             transition:"width .25s ease",
-            borderRight: patientSelected ? "3px solid #E2E8F0" : "none",
+            borderRight: showOverviewDetail ? "3px solid #E2E8F0" : "none",
             display:"flex",flexDirection:"column",
             background:"#F8FAFC",overflow:"hidden",
             padding:"10px 12px",
@@ -969,12 +996,12 @@ export default function App(){
               selectedId={focusId} compareId={cmpId}
               onSelectPatient={handleSelect}
               onComparePatient={handleCompare}
-              isSplitView={patientSelected}
+              isSplitView={showOverviewDetail}
               filters={filters} onFilterChange={setFilters}/>
           </div>
 
           {/* RIGHT: Single patient detail — only shows when patient selected, 55% */}
-          {patientSelected&&(
+          {showOverviewDetail&&(
             <div style={{
               flex:1,minWidth:0,
               display:"flex",flexDirection:"column",
@@ -1082,8 +1109,8 @@ export default function App(){
                 {/* Ego network */}
                 <div style={{flexShrink:0}}>
                   <BlockLabel
-                    text="EGO CARE NETWORK"
-                    right={<span style={{color:"#94A3B8",fontSize:12,fontFamily:FONT}}>HCP co-access graph</span>}/>
+                    text="EGO CARE NETWORK" titleFontSize={15}
+                    right={<span style={{color:"#94A3B8",fontSize:14,fontFamily:FONT}}>HCP co-access graph</span>}/>
                   <div style={{border:"2px solid #0F172A",borderTop:"none",
                     borderRadius:"0 0 8px 8px"}}>
                     <EgoNetwork key={focusId} patientId={focusId} accentColor="#2B6CB0"
@@ -1329,10 +1356,10 @@ const yRange = Math.max(yMax - yMin, minSpan);
 
                 {/* LEFT: Feature browser — wider */}
                 <div style={{width:400,flexShrink:0,display:"flex",flexDirection:"column",gap:8}}>
-                  <div style={{color:"#0F172A",fontSize:15,fontWeight:800,letterSpacing:1,fontFamily:FONT}}>
+                  <div style={{color:"#0F172A",fontSize:18,fontWeight:700,letterSpacing:1,fontFamily:FONT}}>
                     SURROGATE FEATURE IMPORTANCE
                   </div>
-                  <div style={{color:"#64748B",fontSize:13,fontFamily:FONT,marginBottom:4}}>
+                  <div style={{color:"#1E293B",fontSize:15,fontFamily:FONT,fontWeight:600,marginBottom:4}}>
                     Ranked by avg |weight| · click a row to simulate
                   </div>
                   {groups.map(([grpName,grp])=>{
@@ -1347,15 +1374,15 @@ const yRange = Math.max(yMax - yMin, minSpan);
                           borderBottom:open?"2px solid #E2E8F0":"none",
                         }}>
                           <div style={{width:12,height:12,borderRadius:"50%",background:grp.color,flexShrink:0}}/>
-                          <span style={{color:grp.color,fontSize:14,fontWeight:800,fontFamily:FONT,flex:1}}>{grpName}</span>
+                          <span style={{color:"#0F172A",fontSize:16,fontWeight:400,fontFamily:FONT,flex:1}}>{grpName}</span>
                           <div style={{width:70,height:6,background:"#F1F5F9",borderRadius:3,overflow:"hidden"}}>
                             <div style={{height:"100%",borderRadius:3,background:grp.color,
                               width:`${((grp.totalImportance/groups[0][1].totalImportance)*100).toFixed(1)}%`}}/>
                           </div>
-                          <span style={{color:grp.color,fontSize:13,fontWeight:700,fontFamily:FONT,minWidth:50,textAlign:"right"}}>
+                          <span style={{color:"#0F172A",fontSize:14,fontWeight:400,fontFamily:FONT,minWidth:50,textAlign:"right"}}>
                             {grp.totalImportance.toFixed(3)}
                           </span>
-                          <span style={{color:"#94A3B8",fontSize:13}}>{open?"▴":"▾"}</span>
+                          <span style={{color:"#64748B",fontSize:14,fontWeight:600}}>{open?"▴":"▾"}</span>
                         </div>
                         {open&&grp.features.map(feat=>{
                           const isSel=wiFeature===feat.feature;
@@ -1367,18 +1394,18 @@ const yRange = Math.max(yMax - yMin, minSpan);
                                 cursor:"pointer",borderBottom:"1px solid #F1F5F9",
                                 background:isSel?`${grp.color}14`:"transparent",transition:"background .1s"}}>
                               <div style={{flex:1,minWidth:0}}>
-                                <div style={{color:isSel?grp.color:"#334155",fontSize:13,fontFamily:FONT,
-                                  fontWeight:isSel?800:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                                <div style={{color:isSel?"#090e18":"#0c1119",fontSize:14,fontFamily:FONT,
+                                  fontWeight:450,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                                   {feat.displayLabel}
                                 </div>
-                                <div style={{color:"#94A3B8",fontSize:11,fontFamily:FONT}}>
+                                <div style={{color:"#4f6077",fontSize:13,fontFamily:FONT,fontWeight:600}}>
                                   ×{feat.weekCount}w · val̄={feat.avgValue.toFixed(1)}
                                 </div>
                               </div>
                               <div style={{width:60,height:6,background:"#F1F5F9",borderRadius:3,overflow:"hidden",flexShrink:0}}>
                                 <div style={{height:"100%",borderRadius:3,background:grp.color,width:`${barPct}%`}}/>
                               </div>
-                              <span style={{color:grp.color,fontSize:13,fontWeight:700,fontFamily:FONT,
+                              <span style={{color:"#0F172A",fontSize:14,fontWeight:400,fontFamily:FONT,
                                 minWidth:48,textAlign:"right"}}>{feat.importance.toFixed(3)}</span>
                               {isSel&&<span style={{color:grp.color,fontSize:14,fontWeight:800}}>✓</span>}
                             </div>
@@ -1388,7 +1415,7 @@ const yRange = Math.max(yMax - yMin, minSpan);
                     );
                   })}
                   {surrogateRanking.length===0&&(
-                    <div style={{padding:"28px",color:"#94A3B8",fontSize:14,fontFamily:FONT,textAlign:"center",
+                    <div style={{padding:"28px",color:"#475569",fontSize:15,fontWeight:600,fontFamily:FONT,textAlign:"center",
                       background:"#fff",border:"2px solid #E2E8F0",borderRadius:8}}>
                       No surrogate data for this patient
                     </div>
@@ -1405,27 +1432,27 @@ const yRange = Math.max(yMax - yMin, minSpan);
                       <div style={{color:"#D69E2E",fontSize:44,fontWeight:800,fontFamily:FONT,lineHeight:1}}>
                         {(origEnd*100).toFixed(1)}%
                       </div>
-                      <div style={{color:"#94A3B8",fontSize:12,fontFamily:FONT,marginTop:6}}>
+                      <div style={{color:"#475569",fontSize:14,fontWeight:600,fontFamily:FONT,marginTop:6}}>
                         {effectivePatientId} · original trajectory
                       </div>
                     </div>
                     <div style={{background:"#fff",border:`3px solid ${wiFeature?(isGood?"#38A169":"#E53E3E"):"#E2E8F0"}`,borderRadius:12,padding:"20px 24px"}}>
-                      <div style={{color:wiFeature?(isGood?"#38A169":"#E53E3E"):"#94A3B8",fontSize:12,fontWeight:800,letterSpacing:1.5,marginBottom:8,fontFamily:FONT}}>
+                      <div style={{color:wiFeature?(isGood?"#38A169":"#E53E3E"):"#475569",fontSize:13,fontWeight:800,letterSpacing:1.5,marginBottom:8,fontFamily:FONT}}>
                         PROJECTED RISK (end)
                       </div>
                       <div style={{color:wiFeature?(isGood?"#38A169":"#E53E3E"):"#94A3B8",fontSize:44,fontWeight:800,fontFamily:FONT,lineHeight:1}}>
                         {wiFeature?(pertEnd*100).toFixed(1)+"%" : "—"}
                       </div>
-                      <div style={{color:"#94A3B8",fontSize:12,fontFamily:FONT,marginTop:6}}>
+                      <div style={{color:"#475569",fontSize:14,fontWeight:600,fontFamily:FONT,marginTop:6}}>
                         {wiFeature?`after ↓${wiPerturbPct}% ${selFeat?.displayLabel??""}`:"select a feature"}
                       </div>
                     </div>
                     <div style={{background:"#fff",border:`3px solid ${wiFeature?(isGood?"#38A169":"#E53E3E"):"#E2E8F0"}`,borderRadius:12,padding:"20px 24px"}}>
-                      <div style={{color:wiFeature?(isGood?"#38A169":"#E53E3E"):"#94A3B8",fontSize:12,fontWeight:800,letterSpacing:1.5,marginBottom:8,fontFamily:FONT}}>Δ RISK</div>
+                      <div style={{color:wiFeature?(isGood?"#38A169":"#E53E3E"):"#475569",fontSize:13,fontWeight:800,letterSpacing:1.5,marginBottom:8,fontFamily:FONT}}>Δ RISK</div>
                       <div style={{color:wiFeature?(isGood?"#38A169":"#E53E3E"):"#94A3B8",fontSize:44,fontWeight:800,fontFamily:FONT,lineHeight:1}}>
                         {wiFeature?(delta>=0?"+":"")+(delta*100).toFixed(2)+"%" : "—"}
                       </div>
-                      <div style={{color:"#94A3B8",fontSize:12,fontFamily:FONT,marginTop:6}}>
+                      <div style={{color:"#475569",fontSize:14,fontWeight:600,fontFamily:FONT,marginTop:6}}>
                         {wiFeature?(isGood?"risk reduction ↓":"risk increase ↑"):"awaiting feature selection"}
                       </div>
                     </div>
@@ -1435,10 +1462,10 @@ const yRange = Math.max(yMax - yMin, minSpan);
                   {!wiFeature&&(
                     <div style={{background:"#fff",border:"2px solid #E2E8F0",borderRadius:12,
                       padding:"40px",display:"flex",alignItems:"center",justifyContent:"center",minHeight:260}}>
-                      <div style={{textAlign:"center",color:"#94A3B8",fontFamily:FONT}}>
+                      <div style={{textAlign:"center",color:"#64748B",fontFamily:FONT}}>
                         <div style={{fontSize:48,marginBottom:12}}>←</div>
                         <div style={{fontSize:18,fontWeight:700}}>Select a feature to simulate</div>
-                        <div style={{fontSize:15,marginTop:6}}>Click any row in the feature browser on the left</div>
+                        <div style={{fontSize:16,fontWeight:600,marginTop:6}}>Click any row in the feature browser on the left</div>
                       </div>
                     </div>
                   )}
@@ -1458,19 +1485,19 @@ const yRange = Math.max(yMax - yMin, minSpan);
                             <svg width={28} height={8}>
                               <line x1={0} y1={4} x2={28} y2={4} stroke="#94A3B8" strokeWidth={2} strokeDasharray="5,3"/>
                             </svg>
-                            <span style={{color:"#64748B",fontSize:10,fontFamily:FONT}}>Original predicted risk</span>
+                            <span style={{color:"#334155",fontSize:12,fontWeight:600,fontFamily:FONT}}>Original predicted risk</span>
                           </div>
                           <div style={{display:"flex",alignItems:"center",gap:5}}>
                             <svg width={28} height={8}>
                               <line x1={0} y1={4} x2={28} y2={4} stroke={isGood?"#38A169":"#E53E3E"} strokeWidth={2.5}/>
                             </svg>
-                            <span style={{color:"#64748B",fontSize:10,fontFamily:FONT}}>
+                            <span style={{color:"#334155",fontSize:12,fontWeight:600,fontFamily:FONT}}>
                               Projected ({isGood?"reduced":"increased"}) risk
                             </span>
                           </div>
                           <div style={{display:"flex",alignItems:"center",gap:5}}>
                             <div style={{width:12,height:12,background:"#D69E2E",borderRadius:2}}/>
-                            <span style={{color:"#64748B",fontSize:10,fontFamily:FONT}}>Center point</span>
+                            <span style={{color:"#334155",fontSize:12,fontWeight:600,fontFamily:FONT}}>Center point</span>
                           </div>
                         </div>
                         <span style={{marginLeft:"auto",color:isGood?"#38A169":"#E53E3E",
@@ -1488,13 +1515,11 @@ const yRange = Math.max(yMax - yMin, minSpan);
                         {[0,.25,.5,.75,1].map(t=>{
                           const v = yMin + t * yRange;
                           const y = toY(v).toFixed(1);
-                          const isMid = t === 0.5;
                           return(<g key={t}>
                             <line x1={PL} y1={y} x2={CW-PR} y2={y}
-                              stroke={isMid?"#E2E8F0":"#F1F5F9"} strokeWidth={isMid?1.2:.7}
-                              strokeDasharray={isMid?"4,3":""}/>
+                              stroke="#F1F5F9" strokeWidth={0.7}/>
                             <text x={PL-5} y={parseFloat(y)+3.5} textAnchor="end"
-                              fontSize={8} fill="#94A3B8" fontFamily={FONT}>
+                              fontSize={10} fill="#64748B" fontFamily={FONT}>
                               {(v*100).toFixed(1)}%
                             </text>
                           </g>);
@@ -1626,10 +1651,6 @@ const yRange = Math.max(yMax - yMin, minSpan);
   );
 })()}
 
-                        {/* 50% risk threshold label */}
-                        <text x={PL-5} y={toY(0.5)+3.5} textAnchor="end" fontSize={10}
-                          fill="#CBD5E1" fontFamily={FONT}>50%</text>
-
                         {/* Clickable week hit areas */}
                         {wiData.map((_,i)=>(
                           <rect key={i} x={toX(i)-7} y={PT} width={14} height={ph}
@@ -1641,13 +1662,13 @@ const yRange = Math.max(yMax - yMin, minSpan);
                         {[0,Math.floor(n/4),Math.floor(n/2),Math.floor(3*n/4),n-1]
                           .filter((v,i,a)=>a.indexOf(v)===i&&v<n).map(i=>(
                           <text key={i} x={toX(i).toFixed(1)} y={PT+ph+18} textAnchor="middle"
-                            fontSize={11} fill="#94A3B8" fontFamily={FONT}>
+                            fontSize={12} fill="#64748B" fontFamily={FONT}>
                             w{wiData[i]?.week??i}
                           </text>
                         ))}
                       </svg>
 
-                      <div style={{fontSize:13,color:"#94A3B8",fontFamily:FONT,marginTop:8,textAlign:"center"}}>
+                      <div style={{fontSize:14,color:"#475569",fontWeight:600,fontFamily:FONT,marginTop:8,textAlign:"center"}}>
                         Click anywhere on chart to move the center point · perturbation applies from center onward
                       </div>
 
@@ -1666,8 +1687,8 @@ const yRange = Math.max(yMax - yMin, minSpan);
                           onChange={e=>setWiPerturbPct(parseInt(e.target.value))}
                           style={{width:"100%",accentColor:selCol,cursor:"pointer",height:8}}/>
                         <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>
-                          <span style={{color:"#94A3B8",fontSize:13,fontFamily:FONT}}>0% — no change</span>
-                          <span style={{color:"#94A3B8",fontSize:13,fontFamily:FONT}}>100% — remove entirely</span>
+                          <span style={{color:"#000000",fontSize:14,fontWeight:400,fontFamily:FONT}}>0% — no change</span>
+                          <span style={{color:"#000000",fontSize:14,fontWeight:400,fontFamily:FONT}}>100% — remove entirely</span>
                         </div>
                       </div>
 
@@ -1676,7 +1697,7 @@ const yRange = Math.max(yMax - yMin, minSpan);
                         <div style={{marginTop:12,padding:"14px 18px",
                           background:isGood?"#F0FFF4":"#FFF5F5",
                           border:`2px solid ${isGood?"#38A16933":"#E53E3E33"}`,borderRadius:10,
-                          color:"#475569",fontSize:14,fontFamily:FONT,lineHeight:1.8}}>
+                          color:"#334155",fontSize:18,fontFamily:FONT,fontWeight:700,lineHeight:1.65}}>
                           Reducing <strong style={{color:selCol}}>{selFeat.displayLabel}</strong> by{" "}
                           <strong>{wiPerturbPct}%</strong> from week{" "}
                           <strong style={{color:"#D69E2E"}}>W{wiData[wiCenterIdx]?.week??wiCenterIdx}</strong> onward{" "}
@@ -1685,7 +1706,7 @@ const yRange = Math.max(yMax - yMin, minSpan);
                               {isGood?"reduces":"increases"} end risk by{" "}
                               {Math.abs(delta*100).toFixed(2)}%
                             </span>{" "}(surrogate approximation)</>
-                            :<span style={{color:"#94A3B8"}}>has minimal effect (Δ={delta.toFixed(5)})</span>
+                            :<span style={{color:"#000000",fontWeight:400}}>has minimal effect (Δ={delta.toFixed(5)})</span>
                           }
                         </div>
                       )}
@@ -1694,16 +1715,16 @@ const yRange = Math.max(yMax - yMin, minSpan);
 
                   {/* Math note */}
                   <div style={{background:"#fff",border:"2px solid #E2E8F0",borderRadius:10,padding:"16px 20px"}}>
-                    <div style={{color:"#0F172A",fontSize:13,fontWeight:800,letterSpacing:1,marginBottom:8,fontFamily:FONT}}>
+                    <div style={{color:"#0F172A",fontSize:18,fontWeight:500,letterSpacing:1,marginBottom:8,fontFamily:FONT}}>
                       HOW THE MATH WORKS
                     </div>
-                    <div style={{color:"#64748B",fontSize:13,fontFamily:FONT,lineHeight:1.9}}>
+                    <div style={{color:"#334155",fontSize:18,fontFamily:FONT,fontWeight:300,lineHeight:1.7}}>
                       Surrogate model coefficient (weight) used as linear proxy for GCN sensitivity.
                       For each week from center onward:{" "}
-                      <code style={{background:"#F1F5F9",padding:"2px 8px",borderRadius:4,fontSize:13,color:"#0F172A"}}>
+                      <code style={{background:"#F1F5F9",padding:"2px 8px",borderRadius:4,fontSize:18,color:"#0F172A",fontWeight:400}}>
                         ΔLogit = −w × (reduction%) × |value|
                       </code>{" · "}
-                      <code style={{background:"#F1F5F9",padding:"2px 8px",borderRadius:4,fontSize:13,color:"#0F172A"}}>
+                      <code style={{background:"#F1F5F9",padding:"2px 8px",borderRadius:4,fontSize:18,color:"#0F172A",fontWeight:400}}>
                         NewRisk = σ(logit(orig) + ΔLogit)
                       </code>
                     </div>
