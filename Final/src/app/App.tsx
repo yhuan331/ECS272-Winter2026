@@ -969,6 +969,7 @@ export default function App(){
               selectedId={focusId} compareId={cmpId}
               onSelectPatient={handleSelect}
               onComparePatient={handleCompare}
+              isSplitView={patientSelected}
               filters={filters} onFilterChange={setFilters}/>
           </div>
 

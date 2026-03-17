@@ -10,6 +10,7 @@ interface Props {
   onSelectPatient: (id: string) => void;
   onComparePatient?: (id: string) => void;
   compareMode?: boolean;
+  isSplitView?: boolean;
   filters: Set<string>;
   onFilterChange: (f: Set<string>) => void;
 }
@@ -24,6 +25,7 @@ export function ScatterPlot({
   onSelectPatient,
   onComparePatient,
   compareMode = false,
+  isSplitView = false,
   filters,
   onFilterChange,
 }: Props) {
@@ -34,10 +36,14 @@ export function ScatterPlot({
   const dragStart = useRef<{ mx: number; my: number; vp: Viewport } | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
-  const pad   = { top: 68, right: 32, bottom: 62, left: 52 };
-  const W     = 960, H = 500;
+  const pad   = { top: 86, right: 32, bottom: 62, left: 66 };
+  const W     = 960;
+  const H     = isSplitView ? 900 : 500;
   const plotW = W - pad.left - pad.right;
   const plotH = H - pad.top  - pad.bottom;
+  const tickFontSize = isSplitView ? 15 : 7;
+  const axisFontSize = isSplitView ? 15 : 10;
+  const yAxisX = isSplitView ? 10 : 14;
 
   const dotRadius = () => 5;
 
@@ -232,7 +238,7 @@ export function ScatterPlot({
       >
         <defs>
           <clipPath id="plotClip">
-            <rect x={pad.left - 20} y={pad.top - 20} width={plotW + 40} height={plotH + 40} />
+            <rect x={pad.left} y={pad.top - 8} width={plotW + 8} height={plotH + 30} />
           </clipPath>
         </defs>
 
@@ -255,13 +261,13 @@ export function ScatterPlot({
         {/* Y ticks */}
         {yTicks.map((t, i) => (
           <text key={i} x={pad.left - 6} y={t.svgY} textAnchor="end" dominantBaseline="middle"
-            fill={T.textFaint} fontSize={7} fontFamily={FONT}>{t.label}</text>
+            fill={T.textFaint} fontSize={tickFontSize} fontFamily={FONT}>{t.label}</text>
         ))}
 
         {/* X ticks */}
         {xTicks.map((t, i) => (
           <text key={i} x={t.svgX} y={pad.top + plotH + 16} textAnchor="middle"
-            fill={T.textFaint} fontSize={7} fontFamily={FONT}>{t.label}</text>
+            fill={T.textFaint} fontSize={tickFontSize} fontFamily={FONT}>{t.label}</text>
         ))}
 
         {/* Dots */}
@@ -354,12 +360,12 @@ export function ScatterPlot({
 
         {/* Axis labels */}
         <text x={pad.left + plotW / 2} y={H - 6} textAnchor="middle"
-          fill={T.textFaint} fontSize={10} fontFamily={FONT}>
+          fill={T.textFaint} fontSize={axisFontSize} fontFamily={FONT}>
           Care Network Size →
         </text>
-        <text x={14} y={pad.top + plotH / 2} textAnchor="middle"
-          fill={T.textFaint} fontSize={10} fontFamily={FONT}
-          transform={`rotate(-90,14,${pad.top + plotH / 2})`}>
+        <text x={yAxisX} y={pad.top + plotH / 2} textAnchor="middle"
+          fill={T.textFaint} fontSize={axisFontSize} fontFamily={FONT}
+          transform={`rotate(-90,${yAxisX},${pad.top + plotH / 2})`}>
           Avg Predicted Death Risk ↑
         </text>
 
