@@ -171,7 +171,7 @@ export function HCPBarChart({ selectedWeek, data }: Props) {
                       }}>
                         <div style={{
                           width: 158, flexShrink: 0,
-                          color: T.textSecondary, fontSize: 12,
+                          color: T.textSecondary, fontSize: 14,
                           whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                         }}>
                           {child.name}

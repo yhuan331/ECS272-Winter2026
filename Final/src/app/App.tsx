@@ -351,7 +351,7 @@ function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}
                   </span>
 
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{color:group.active?group.color:"#94A3B8",fontSize:11,
+                    <div style={{color:group.active?group.color:"#94A3B8",fontSize:15,
                       fontFamily:FONT,fontWeight:800,letterSpacing:0.3}}>{group.label}</div>
                     <div style={{color:"#94A3B8",fontSize:8,fontFamily:FONT,marginTop:1,
                       overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
@@ -364,7 +364,7 @@ function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}
                   <div style={{width:72,height:6,background:"#F1F5F9",borderRadius:3,overflow:"hidden",flexShrink:0}}>
                     <div style={{height:"100%",width:group.active?barW:0,background:col,borderRadius:3,transition:"width .2s"}}/>
                   </div>
-                  <span style={{color:col,fontSize:11,fontWeight:800,minWidth:52,
+                  <span style={{color:col,fontSize:13,fontWeight:800,minWidth:52,
                     textAlign:"right",fontFamily:FONT,flexShrink:0}}>
                     {group.active ? `${group.totalContrib>=0?"+":""}${group.totalContrib.toFixed(3)}`
                       : <span style={{color:"#CBD5E1",fontWeight:400,fontSize:10}}>—</span>}
@@ -399,7 +399,7 @@ function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}
                           }}/>
                           <div style={{flex:1,minWidth:0}}>
                             <div style={{display:"flex",alignItems:"center",gap:4}}>
-                              <span style={{color:child.active?"#1e293b":"#94A3B8",fontSize:10,
+                              <span style={{color:child.active?"#1e293b":"#94A3B8",fontSize:14,
                                 fontFamily:FONT,fontWeight:child.active?600:400,
                                 overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                                 {child.label}
@@ -423,7 +423,7 @@ function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}
                           <div style={{width:72,height:4,background:"#F1F5F9",borderRadius:2,overflow:"hidden",flexShrink:0}}>
                             <div style={{height:"100%",width:child.active?cBarW:0,background:cCol,borderRadius:2}}/>
                           </div>
-                          <span style={{color:cCol,fontSize:10,fontWeight:700,
+                          <span style={{color:cCol,fontSize:13,fontWeight:700,
                             minWidth:48,textAlign:"right",fontFamily:FONT,flexShrink:0}}>
                             {child.active?`${child.totalContrib>=0?"+":""}${child.totalContrib.toFixed(3)}`:"—"}
                           </span>
@@ -998,11 +998,11 @@ export default function App(){
                     fontWeight:800,fontFamily:FONT,borderRadius:4,padding:"2px 8px",letterSpacing:.5}}>
                     {focusPt.cancer.toUpperCase()}
                   </span>
-                  <span style={{fontSize:11,fontWeight:800,fontFamily:FONT,
+                  <span style={{fontSize:13,fontWeight:800,fontFamily:FONT,
                     color:focusPt.survived?"#86EFAC":"#FCA5A5"}}>
                     {focusPt.survived?"SURVIVED":"DECEASED"}
                   </span>
-                  <span style={{color:"rgba(255,255,255,.8)",fontSize:11,fontFamily:FONT}}>
+                  <span style={{color:"rgb(255, 255, 255)",fontSize:13,fontFamily:FONT}}>
                     Avg Risk <strong>{avgRiskAll}%</strong>
                     &nbsp;·&nbsp;{totalPatientHCP} HCPs
                     &nbsp;·&nbsp;{weeklyData.length}w
@@ -1013,10 +1013,10 @@ export default function App(){
                     ?<button onClick={()=>setView("compare")} style={{
                         padding:"5px 14px",borderRadius:6,cursor:"pointer",
                         background:"rgba(255,255,255,.2)",border:"2px solid rgba(255,255,255,.5)",
-                        color:"#fff",fontSize:10,fontFamily:FONT,fontWeight:800,letterSpacing:.8}}>
+                        color:"#fff",fontSize:13,fontFamily:FONT,fontWeight:800,letterSpacing:.8}}>
                         VIEW COMPARISON →
                       </button>
-                    :<span style={{color:"rgba(255,255,255,.45)",fontSize:10,fontFamily:FONT}}>
+                    :<span style={{color:"rgba(255,255,255,.45)",fontSize:13,fontFamily:FONT}}>
                         Right-click any dot to compare
                       </span>
                   }
