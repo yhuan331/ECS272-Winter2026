@@ -394,19 +394,19 @@ export function ScatterPlot({
         {(["breast", "colon", "lung"] as const).map(c => (
           <div key={c} style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <svg width={13} height={13}><circle cx={6.5} cy={6.5} r={6} fill={CANCER_COLORS[c]} /></svg>
-            <span style={{ color: T.textMuted, fontSize: 12, fontFamily: FONT, textTransform: "uppercase", fontWeight: 700, letterSpacing: 0.5 }}>{c}</span>
+            <span style={{ color: T.textMuted, fontSize: 18, fontFamily: FONT, textTransform: "uppercase", fontWeight: 700, letterSpacing: 0.5 }}>{c}</span>
           </div>
         ))}
         <div style={{ width: 1, height: 18, background: T.border }} />
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <svg width={14} height={14}><circle cx={7} cy={7} r={5.5} fill="none" stroke={T.textMuted} strokeWidth={2} /></svg>
-          <span style={{ color: T.textMuted, fontSize: 12, fontFamily: FONT }}>Deceased</span>
+          <span style={{ color: T.textMuted, fontSize: 20, fontFamily: FONT }}>Deceased</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <svg width={14} height={14}><circle cx={7} cy={7} r={5.5} fill={T.textFaint} opacity={0.5} /></svg>
-          <span style={{ color: T.textMuted, fontSize: 12, fontFamily: FONT }}>Survived</span>
+          <span style={{ color: T.textMuted, fontSize: 20, fontFamily: FONT }}>Survived</span>
         </div>
-        <span style={{ marginLeft: "auto", color: T.textFaint, fontSize: 12, fontFamily: FONT, fontWeight: 700 }}>{visible.length} / {patients.length} pts</span>
+        <span style={{ marginLeft: "auto", color: T.textFaint, fontSize: 17, fontFamily: FONT, fontWeight: 700 }}>{visible.length} / {patients.length} pts</span>
       </div>
     </div>
   );

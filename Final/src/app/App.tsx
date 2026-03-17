@@ -221,7 +221,7 @@ function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}
       </div>
       <div>
         <div style={{color:"#0F172A",fontSize:13,fontWeight:800,letterSpacing:1,marginBottom:6,fontFamily:FONT}}>
-          SURROGATE MODEL WEIGHTS
+         FEATURE IMPORTANCE WEIGHTS
         </div>
         <div style={{color:"#64748B",fontSize:12,marginBottom:8,fontFamily:FONT}}>
           Features active this week · bar = |contribution| this week · red raises risk · green protective
@@ -353,7 +353,7 @@ function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{color:group.active?group.color:"#94A3B8",fontSize:15,
                       fontFamily:FONT,fontWeight:800,letterSpacing:0.3}}>{group.label}</div>
-                    <div style={{color:"#94A3B8",fontSize:8,fontFamily:FONT,marginTop:1,
+                    <div style={{color:"#434d5b",fontSize:11,fontFamily:FONT,marginTop:1,
                       overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                       {group.children.filter(c=>c.active).slice(0,3).map(c=>c.label).join(" · ")}
                       {activeCount > 3 ? ` +${activeCount-3}` : ""}
@@ -415,7 +415,7 @@ function WeekDetail({data,color,mode}:{data:WeekData;color:string;mode:ViewMode}
                               ))}
                             </div>
                             {child.active && (
-                              <div style={{color:"#94A3B8",fontSize:8,fontFamily:FONT}}>
+                              <div style={{color:"#3e4754",fontSize:11,fontFamily:FONT}}>
                                 val={child.totalValue.toFixed(1)} · w={child.weight>=0?"+":""}{child.weight.toFixed(3)}
                               </div>
                             )}
@@ -861,12 +861,9 @@ export default function App(){
   };
 
   if(!ready) return(
-    <div style={{width:"100%",height:"100vh",background:"#0F172A",display:"flex",
+    <div style={{width:"100%",height:"100vh",background:"#d0d0d0",display:"flex",
       flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
-      <div style={{color:"white",fontFamily:FONT,fontSize:20,fontWeight:800,letterSpacing:3}}>
-        ONCO<span style={{color:"#60A5FA"}}>NET</span>
-      </div>
-      <div style={{color:"#475569",fontFamily:FONT,fontSize:11,letterSpacing:2}}>LOADING PATIENT DATA…</div>
+      <div style={{color:"#343f4f",fontFamily:FONT,fontSize:13,letterSpacing:2}}>LOADING PATIENT DATA…</div>
     </div>
   );
 

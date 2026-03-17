@@ -1043,7 +1043,17 @@ export function EgoNetwork({ patientId, accentColor = "#2B6CB0", initialWeek }: 
       {/* ── NETWORK SVG ── */}
       <div style={{ flexShrink: 0 }}>
         {isWeeklyActive && ((!currentSnap?.nodes?.length && soloHCPs.length > 0) || (renderEdges.length === 0 && soloHCPs.length > 0))
-          ? <SoloNetworkSVG hcps={soloHCPs} patientId={patientId} weekNum={currentWeek}/>
+          ? <div style={{ height: H, display: "flex", flexDirection: "column", alignItems: "center",
+              justifyContent: "center", background: "#f7f9fc", borderRadius: 10,
+              border: "1.5px dashed #cbd5e1", gap: 10 }}>
+              <div style={{ fontSize: 28, opacity: 0.3 }}>◯</div>
+              <div style={{ fontSize: 13, color: "#94a3b8", fontFamily: FONT, fontWeight: 600 }}>
+                No HCP co-interaction for this week
+              </div>
+              <div style={{ fontSize: 11, color: "#cbd5e1", fontFamily: FONT }}>
+                Week {currentWeek}
+              </div>
+            </div>
           : <NetworkSVG
               nodes={renderNodes} edges={renderEdges}
               cacheKey={renderCacheKey} isCumulative={isCumulative}
