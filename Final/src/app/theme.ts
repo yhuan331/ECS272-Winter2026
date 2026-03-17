@@ -13,7 +13,7 @@ export const T = {
   // Text
   textPrimary:   "#0F172A",
   textSecondary: "#475569",
-  textMuted:     "#94A3B8",
+  textMuted:     "#3a4452",
   textFaint:     "#000000",
 
   // Accent palette — kept vivid so they pop on white
@@ -39,7 +39,7 @@ export const T = {
 // Cancer cohort colors on white bg
 export const CANCER_COLORS = {
   breast: "#7c3aed",  
-  colon:  "#634026", 
+  colon:  "#714523", 
   lung:   "#32a4d8",
 };
 

@@ -264,14 +264,14 @@ export function RadialGlyph({
         padding: "7px 14px", borderBottom: `1px solid ${T.border}`,
         flexShrink: 0, flexWrap: "wrap",
       }}>
-        <span style={{ color: T.textMuted, fontSize: 12, fontFamily: FONT, marginRight: 4 }}>
+        <span style={{ color: T.textMuted, fontSize: 15, fontFamily: FONT, marginRight: 4 }}>
           {active.label}
         </span>
         {active.legend.map(l => <LegendDot key={l.label} color={l.color} label={l.label} />)}
         {/* Arc fill indicator */}
         <span style={{
           marginLeft: "auto", display: "flex", alignItems: "center", gap: 6,
-          color: T.textFaint, fontSize: 11, fontFamily: FONT,
+          color: T.textFaint, fontSize: 14, fontFamily: FONT,
         }}>
           <span style={{
             display: "inline-block", width: 36, height: 6, borderRadius: 3,
@@ -343,9 +343,9 @@ export function RadialGlyph({
             const vp = polarToCart(CX, CY, CENTER_R * 0.62, -30);
             return (
               <g>
-                <text x={lp.x} y={lp.y - 3} textAnchor="middle" dominantBaseline="central"
+                <text x={lp.x - 6} y={lp.y - 3} textAnchor="middle" dominantBaseline="central"
                   fill={T.textMuted} fontSize={9} fontFamily={FONT}>TOTAL UNIQUE HCP</text>
-                <text x={vp.x} y={vp.y + 3} textAnchor="middle" dominantBaseline="central"
+                <text x={vp.x} y={vp.y - 2} textAnchor="middle" dominantBaseline="central"
                   fill="#2B6CB0" fontSize={16} fontFamily={FONT} fontWeight={700}>{totalPatientHCP}</text>
               </g>
             );
@@ -357,9 +357,9 @@ export function RadialGlyph({
             const vp = polarToCart(CX, CY, CENTER_R * 0.62, 90);
             return (
               <g>
-                <text x={lp.x} y={lp.y - 3} textAnchor="middle" dominantBaseline="central"
+                <text x={lp.x + 6} y={lp.y - 8} textAnchor="middle" dominantBaseline="central"
                   fill={T.textMuted} fontSize={9} fontFamily={FONT}>TEAM VOLATILITY</text>
-                <text x={vp.x} y={vp.y + 3} textAnchor="middle" dominantBaseline="central"
+                <text x={vp.x} y={vp.y + 10} textAnchor="middle" dominantBaseline="central"
                   fill="#38A169" fontSize={13} fontFamily={FONT} fontWeight={700}>{avgAbsDeltaTeam}/wk</text>
               </g>
             );
@@ -371,7 +371,10 @@ export function RadialGlyph({
             return (
               <g>
                 <text x={lp.x} y={lp.y + 1} textAnchor="middle" dominantBaseline="central"
-                  fill="#D69E2E" fontSize={11} fontFamily={FONT}>(Avg Risk) {avgRiskAll}%</text>
+                  fill="#D69E2E" fontSize={11} fontFamily={FONT}>
+                  <tspan x={lp.x - 15 } dy="0">Avg Risk</tspan>
+                  <tspan x={lp.x - 15} dy="1.6em">{avgRiskAll}%</tspan>
+                </text>
               </g>
             );
           })()}
@@ -490,7 +493,7 @@ function LegendDot({ color, label }: { color: string; label: string }) {
   return (
     <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
       <span style={{ width: 10, height: 10, borderRadius: "50%", background: color, flexShrink: 0 }} />
-      <span style={{ color: T.textMuted, fontSize: 12, fontFamily: T.font }}>{label}</span>
+      <span style={{ color: T.textMuted, fontSize: 15, fontFamily: T.font }}>{label}</span>
     </span>
   );
 }

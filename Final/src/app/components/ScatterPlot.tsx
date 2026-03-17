@@ -181,7 +181,7 @@ export function ScatterPlot({
               border: `2px solid ${active ? color : T.border}`,
               borderRadius: 5, padding: "5px 13px",
               color: active ? color : T.textMuted,
-              fontSize: 12, fontFamily: FONT, cursor: "pointer",
+              fontSize: 20, fontFamily: FONT, cursor: "pointer",
               textTransform: "uppercase", letterSpacing: 1, fontWeight: 700,
               transition: "all 0.15s",
             }}>{c}</button>
@@ -194,7 +194,7 @@ export function ScatterPlot({
         {/* Survival filter buttons */}
         {(["all", "survived", "deceased"] as const).map(opt => {
           const active = survivorFilter === opt;
-          const color  = opt === "survived" ? "#38A169" : opt === "deceased" ? "#E53E3E" : T.textMuted;
+          const color  = opt === "survived" ? "#38A169" : opt === "deceased" ? "#E53E3E" : "#273140";
           const label  = opt === "all" ? "ALL" : opt === "survived" ? "● ALIVE" : "○ DECEASED";
           return (
             <button key={opt} onClick={() => setSurvivorFilter(opt)} style={{
@@ -202,16 +202,14 @@ export function ScatterPlot({
               border: `2px solid ${active ? color : T.border}`,
               borderRadius: 5, padding: "5px 13px",
               color: active ? color : T.textMuted,
-              fontSize: 12, fontFamily: FONT, cursor: "pointer",
+              fontSize: 20, fontFamily: FONT, cursor: "pointer",
               letterSpacing: 1, fontWeight: 700,
               transition: "all 0.15s",
             }}>{label}</button>
           );
         })}
 
-        <span style={{ color: T.textFaint, fontSize: 11, marginLeft: 4 }}>
-          scroll to zoom · drag to pan · <strong style={{color:"#2B6CB0"}}>click</strong>=A · <strong style={{color:"#6B46C1"}}>right-click</strong>=B
-        </span>
+
       </div>
 
       {/* SVG */}
@@ -394,17 +392,17 @@ export function ScatterPlot({
         {(["breast", "colon", "lung"] as const).map(c => (
           <div key={c} style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <svg width={13} height={13}><circle cx={6.5} cy={6.5} r={6} fill={CANCER_COLORS[c]} /></svg>
-            <span style={{ color: T.textMuted, fontSize: 18, fontFamily: FONT, textTransform: "uppercase", fontWeight: 700, letterSpacing: 0.5 }}>{c}</span>
+            <span style={{ color: T.textMuted, fontSize: 23, fontFamily: FONT, textTransform: "uppercase", fontWeight: 700, letterSpacing: 0.5 }}>{c}</span>
           </div>
         ))}
         <div style={{ width: 1, height: 18, background: T.border }} />
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <svg width={14} height={14}><circle cx={7} cy={7} r={5.5} fill="none" stroke={T.textMuted} strokeWidth={2} /></svg>
-          <span style={{ color: T.textMuted, fontSize: 20, fontFamily: FONT }}>Deceased</span>
+          <span style={{ color: T.textMuted, fontSize: 25, fontFamily: FONT }}>Deceased</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <svg width={14} height={14}><circle cx={7} cy={7} r={5.5} fill={T.textFaint} opacity={0.5} /></svg>
-          <span style={{ color: T.textMuted, fontSize: 20, fontFamily: FONT }}>Survived</span>
+          <span style={{ color: T.textMuted, fontSize: 25, fontFamily: FONT }}>Survived</span>
         </div>
         <span style={{ marginLeft: "auto", color: T.textFaint, fontSize: 17, fontFamily: FONT, fontWeight: 700 }}>{visible.length} / {patients.length} pts</span>
       </div>

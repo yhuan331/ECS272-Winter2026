@@ -670,18 +670,24 @@ function WeekDots({ allWeeks, activeIdx, snapshots, onClickIdx }: {
       padding: "3px 0 0", width: "100%" }}>
       {allWeeks.map((wk, i) => {
         const nodeCount = snapshots[String(wk)]?.nodes?.length ?? 0;
+        const edgeCount = snapshots[String(wk)]?.edges?.length ?? 0;
         const hasData   = nodeCount > 0;
+        const hasCoInteraction = edgeCount > 0;
         const isCur     = i === activeIdx;
         return (
           <div key={wk}
-            title={hasData ? `Week ${wk}: ${nodeCount} HCPs active` : `Week ${wk}: no data`}
+            title={hasData
+              ? (hasCoInteraction
+                  ? `Week ${wk}: ${nodeCount} HCPs active · ${edgeCount} co-interactions`
+                  : `Week ${wk}: ${nodeCount} HCPs active · no co-interaction`)
+              : `Week ${wk}: no data`}
             onClick={() => hasData && onClickIdx(i)}
             style={{
               width:        hasData ? 10 : 6,
               height:       hasData ? 10 : 6,
               borderRadius: "50%",
-              background:   isCur ? "#f59e0b" : hasData ? "#0284c7" : "#e2e8f0",
-              border:       isCur ? "2px solid #b45309" : hasData ? "1.5px solid #0369a1" : "1px solid #cbd5e1",
+              background:   isCur ? "#f59e0b" : hasCoInteraction ? "#0284c7" : "#e2e8f0",
+              border:       isCur ? "2px solid #b45309" : hasCoInteraction ? "1.5px solid #0369a1" : "1px solid #cbd5e1",
               cursor:       hasData ? "pointer" : "default",
               flexShrink:   0,
               transition:   "all 0.15s",
