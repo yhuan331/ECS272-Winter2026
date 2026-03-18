@@ -253,23 +253,22 @@ function WeekDetail({data,color,mode,compareMode=false}:{data:WeekData;color:str
 
           // Pre-normalize
           function normS(s: string) {
-            return s.toLowerCase().trim()
-              .replace(/[()]/g,"").replace(/&/g," and ")
-              .replace(/[/:;,.-]/g," ").replace(/\s+/g," ");
-          }
-          function phraseMatch(field: string, term: string) {
-            return term ? (` ${field} `).includes(` ${term} `) : false;
+            return s.toLowerCase().trim().replace(/\s+/g, " ");
           }
           const CANON_NORM = CANON.map(g => ({ label: g.label, terms: g.terms.map(normS) }));
 
           // Returns ALL matching L1 groups for a raw feature value string
-          function valueToL1Groups(rawValue: string): string[] {
+          function valueToL1Groups(prefix: string, rawValue: string): string[] {
+            // Non-specialty binary flags remain in generic Other (not Specialty Other).
+            if (prefix === "INPATIENT_DEPT_YN" || prefix === "ACCESS_USER_IS_RESIDENT") {
+              return ["Other"];
+            }
             const norm = normS(rawValue);
             const matches: string[] = [];
             for (const { label, terms } of CANON_NORM) {
-              if (terms.some(t => phraseMatch(norm, t))) matches.push(label);
+              if (terms.some(t => norm === t)) matches.push(label);
             }
-            return matches.length > 0 ? matches : ["Other"];
+            return matches.length > 0 ? matches : ["Specialty Other"];
           }
 
           // ── Clean display label from raw value ────────────────────────────
@@ -315,7 +314,7 @@ function WeekDetail({data,color,mode,compareMode=false}:{data:WeekData;color:str
 
           for (const entry of Object.values(mergedMap)) {
             // Classify using the raw value (specialty/title/type value)
-            const groups = valueToL1Groups(entry.rawValue);
+            const groups = valueToL1Groups(entry.prefix, entry.rawValue);
             const entryWithGroups = { ...entry, allGroups: groups };
             for (const g of groups) {
               if (!l1Map[g]) l1Map[g] = { label: g, color: L1_COLORS_LOCAL[g] ?? "#94a3b8", totalContrib: 0, active: false, children: [] };

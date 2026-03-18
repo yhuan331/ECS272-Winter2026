@@ -565,7 +565,7 @@ export const CANON_GROUPS: Array<{ label: HCPLevel1; terms: string[]; color: str
     terms: [
       "husc","registered nurse","rn","lvn","lpn","mosc","nurse practitioner","np","nursing",
       "physician assistant","pa","unit service coordinator","transition nurse specialist","pa/np",
-      "nurse clinical specialist","nurse: rn or lvn","nurse: clinical specialist","ma",
+      "nurse clinical specialist","nurse: rn or lvn","nurse: (rn or lvn)",".nurse: rn or lvn",".nurse: (rn or lvn)","nurse: clinical specialist","ma",
     ] },
   { label: "Pathology",          color: "#6D6875", angle: 180,
     terms: [
@@ -639,14 +639,15 @@ export const CANON_GROUPS: Array<{ label: HCPLevel1; terms: string[]; color: str
     terms: ["urgent care"] },
 ];
 
-// Normalize strings exactly as EgoNetwork does
+// Normalize for strict exact-match classification:
+// case-insensitive + trimmed + collapsed spaces only.
+// We intentionally do NOT strip punctuation so terms must match the canonical strings.
 function normHCP(s: unknown): string {
   return String(s ?? "").toLowerCase().trim()
-    .replace(/[()]/g, "").replace(/&/g, " and ")
-    .replace(/[/:;,.-]/g, " ").replace(/\s+/g, " ");
+    .replace(/\s+/g, " ");
 }
-function hasPhrase(field: string, term: string): boolean {
-  return term ? (` ${field} `).includes(` ${term} `) : false;
+function isExactTerm(field: string, term: string): boolean {
+  return !!term && field === term;
 }
 
 // Pre-normalize terms once
@@ -670,7 +671,7 @@ export function classifyHCPMulti(specialty: string, providerType: string, clinic
   if (specField) {
     const specMatches = new Set<HCPLevel1>();
     for (const { label, termsNorm } of CANON_NORM) {
-      if (termsNorm.some(tn => hasPhrase(specField, tn))) specMatches.add(label);
+      if (termsNorm.some(tn => isExactTerm(specField, tn))) specMatches.add(label);
     }
     if (specMatches.size > 0) return [...specMatches];
   }
@@ -679,7 +680,7 @@ export function classifyHCPMulti(specialty: string, providerType: string, clinic
   if (titleField) {
     const titleMatches = new Set<HCPLevel1>();
     for (const { label, termsNorm } of CANON_NORM) {
-      if (termsNorm.some(tn => hasPhrase(titleField, tn))) titleMatches.add(label);
+      if (termsNorm.some(tn => isExactTerm(titleField, tn))) titleMatches.add(label);
     }
     if (titleMatches.size > 0) return [...titleMatches];
   }
@@ -688,12 +689,12 @@ export function classifyHCPMulti(specialty: string, providerType: string, clinic
   if (typeField) {
     const typeMatches = new Set<HCPLevel1>();
     for (const { label, termsNorm } of CANON_NORM) {
-      if (termsNorm.some(tn => hasPhrase(typeField, tn))) typeMatches.add(label);
+      if (termsNorm.some(tn => isExactTerm(typeField, tn))) typeMatches.add(label);
     }
     if (typeMatches.size > 0) return [...typeMatches];
   }
 
-  return ["Other"];
+  return ["Specialty Other"];
 }
 
 // Single-label version for backward compat (returns primary/first match)
