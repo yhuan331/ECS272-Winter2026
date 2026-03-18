@@ -64,20 +64,39 @@ function Stat({label,value,color,xl}:{label:string;value:string;color:string;xl?
   );
 }
 
-function PatientBadge({pt,label,color,onRemove}:{pt:PatientDot;label:string;color:string;onRemove?:()=>void}){
+function PatientBadge({
+  pt,
+  label,
+  color,
+  onRemove,
+  emphasize = false,
+}:{
+  pt:PatientDot;
+  label:string;
+  color:string;
+  onRemove?:()=>void;
+  emphasize?: boolean;
+}){
+  const bg = emphasize ? color+"1A" : color+"12";
+  const border = color;
+  const tagBg = color;
+  const textColor = color;
+  const subText = emphasize ? "#334155" : "#475569";
   return(
     <div style={{display:"flex",alignItems:"center",gap:8,
-      background:color+"12",border:`2px solid ${color}`,
-      borderRadius:8,padding:"5px 12px",flexShrink:0}}>
-      <span style={{background:color,color:"#fff",fontSize:9,fontWeight:800,
-        fontFamily:FONT,borderRadius:4,padding:"2px 8px",letterSpacing:.8}}>{label}</span>
-      <span style={{color,fontSize:12,fontWeight:800,fontFamily:FONT}}>{pt.id}</span>
-      <span style={{color:"#475569",fontSize:10,fontFamily:FONT}}>
+      background:bg,border:`2px solid ${border}`,
+      borderRadius:8,padding:emphasize?"8px 14px":"5px 12px",flexShrink:0,
+      boxShadow:emphasize?`0 2px 10px ${color}33`:"none"}}>
+      <span style={{background:tagBg,color:"#fff",fontSize:9,fontWeight:800,
+        fontFamily:FONT,borderRadius:4,padding:emphasize?"3px 9px":"2px 8px",letterSpacing:.8,
+      }}>{label}</span>
+      <span style={{color:textColor,fontSize:emphasize?14:12,fontWeight:800,fontFamily:FONT}}>{pt.id}</span>
+      <span style={{color:subText,fontSize:emphasize?12:10,fontFamily:FONT}}>
         {pt.cancer} · {pt.survived?"survived":"deceased"} · {pt.avgRisk}%
       </span>
       {onRemove&&(
         <button onClick={onRemove} style={{marginLeft:2,width:20,height:20,borderRadius:4,border:"none",
-          background:color+"22",cursor:"pointer",color,fontSize:14,fontWeight:800,lineHeight:1,
+          background:emphasize?color+"26":color+"22",cursor:"pointer",color:textColor,fontSize:14,fontWeight:800,lineHeight:1,
           display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>×</button>
       )}
     </div>
@@ -171,7 +190,7 @@ function WeekDetail({data,color,mode,compareMode=false}:{data:WeekData;color:str
             ?`RISK ${(data.riskScore*100).toFixed(1)}%`
             :`Δ ${data.probDelta>=0?"+":""}${(data.probDelta*100).toFixed(2)}%`}
         </span>
-        <span style={{marginLeft:"auto",color:data.spikeColor,fontSize:sz(14),fontWeight:800,fontFamily:FONT}}>
+        <span style={{marginLeft:"auto",color:data.spikeColor,fontSize:sz(16),fontWeight:800,fontFamily:FONT}}>
           {data.probDelta>.005?"↑ RISING":data.probDelta<-.005?"↓ FALLING":"→ STABLE"}
         </span>
       </div>
@@ -352,7 +371,7 @@ function WeekDetail({data,color,mode,compareMode=false}:{data:WeekData;color:str
                   </span>
 
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{color:group.active?group.color:"#94A3B8",fontSize:15,
+                    <div style={{color:group.active?group.color:"#94A3B8",fontSize:18,
                       fontFamily:FONT,fontWeight:800,letterSpacing:0.3}}>{group.label}</div>
                     <div style={{color:"#434d5b",fontSize:sz(11),fontFamily:FONT,marginTop:1,
                       overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
@@ -400,7 +419,7 @@ function WeekDetail({data,color,mode,compareMode=false}:{data:WeekData;color:str
                           }}/>
                           <div style={{flex:1,minWidth:0}}>
                             <div style={{display:"flex",alignItems:"center",gap:4}}>
-                              <span style={{color:child.active?"#1e293b":"#94A3B8",fontSize:sz(14),
+                              <span style={{color:child.active?"#1e293b":"#94A3B8",fontSize:sz(16),
                                 fontFamily:FONT,fontWeight:child.active?600:400,
                                 overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                                 {child.label}
@@ -453,16 +472,39 @@ function WeekDetail({data,color,mode,compareMode=false}:{data:WeekData;color:str
 // ─────────────────────────────────────────────────────────────────────────────
 interface CGProps{weeklySnap:WeekData[];surgeonSnap:number[];totalHCP:number;
   selectedWeek:number|null;onSelectWeek:(w:number|null)=>void;
-  mode:ViewMode;}
-function CompareGlyph({weeklySnap,surgeonSnap,totalHCP,selectedWeek,onSelectWeek,mode}:CGProps){
+  mode:ViewMode; onModeChange:(m:ViewMode)=>void;}
+function CompareGlyph({weeklySnap,surgeonSnap,totalHCP,selectedWeek,onSelectWeek,mode,onModeChange}:CGProps){
   const [hovIdx,setHovIdx]=useS<number|null>(null);
   const showSurgeonTicks = false; // Temporary toggle to hide yellow surgeon markers
   const svgRef=useR<SVGSVGElement>(null);
   const CX=350,CY=280,BASE_R=130,CENTER_R=110,SIZE=700;
   const accent="#6B46C1";
+  const modeMeta: Record<ViewMode, { label: string; short: string; accent: string; legend: Array<{ color: string; label: string }> }> = {
+    prob: {
+      label: "GNN Death Probability",
+      short: "GNN PROB (DEATH)",
+      accent,
+      legend: [
+        { color: "#276749", label: "low death risk" },
+        { color: "#D69E2E", label: "mid" },
+        { color: "#9B2335", label: "high death risk" },
+      ],
+    },
+    delta: {
+      label: "Δ Week-over-Week Change",
+      short: "Δ PROB",
+      accent: "#E53E3E",
+      legend: [
+        { color: "#E53E3E", label: "rising" },
+        { color: "#D69E2E", label: "stable" },
+        { color: "#38A169", label: "falling" },
+      ],
+    },
+  };
+  const activeMeta = modeMeta[mode];
   if(!weeklySnap.length) return(
     <div style={{height:"100%",display:"flex",alignItems:"center",justifyContent:"center",
-      color:"#94A3B8",fontFamily:FONT,fontSize:14,letterSpacing:1.5,
+      color:"#2b2f36",fontFamily:FONT,fontSize:14,letterSpacing:1.5,
       background:"#fff",border:"2px solid #E2E8F0",borderRadius:10}}>NO DATA</div>
   );
   const n=weeklySnap.length;
@@ -498,12 +540,55 @@ function CompareGlyph({weeklySnap,surgeonSnap,totalHCP,selectedWeek,onSelectWeek
   const arcPct=Math.round(arcFrac*100);
   return(
     <div style={{height:"100%",background:"#fff",border:"2px solid #E2E8F0",borderRadius:10,display:"flex",flexDirection:"column"}}>
-      <div style={{display:"flex",alignItems:"center",padding:"7px 14px",borderBottom:"2px solid #E2E8F0",flexShrink:0}}>
-        <span style={{color:accent,fontSize:15,fontWeight:800,fontFamily:FONT,letterSpacing:1}}>
-          {mode==="prob"?"GNN DEATH PROB":"Δ PROBABILITY"}
+      <div style={{ display: "flex", flexShrink: 0, borderBottom: `1px solid ${T.border}` }}>
+        {(["prob", "delta"] as ViewMode[]).map((m, mi) => {
+          const cfg = modeMeta[m];
+          const isActive = mode === m;
+          return (
+            <button key={m} onClick={() => onModeChange(m)} style={{
+              flex: 1, padding: "10px 0 8px",
+              fontFamily: FONT, fontSize: 12, fontWeight: 700, letterSpacing: 1,
+              cursor: "pointer", border: "none",
+              borderBottom: isActive ? `2px solid ${cfg.accent}` : "2px solid transparent",
+              borderRight: mi === 0 ? `1px solid ${T.border}` : "none",
+              background: isActive ? `${cfg.accent}10` : "transparent",
+              color: isActive ? cfg.accent : T.textMuted,
+              transition: "all 0.15s",
+            }}>
+              {cfg.short}
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{
+        display: "flex", alignItems: "center", gap: 12,
+        padding: "7px 14px", borderBottom: `1px solid ${T.border}`,
+        flexShrink: 0, flexWrap: "wrap",
+      }}>
+        <span style={{ color: T.textMuted, fontSize: 15, fontFamily: FONT, marginRight: 4 }}>
+          {activeMeta.label}
         </span>
-        <span style={{marginLeft:"auto",color:"#94A3B8",fontSize:15,fontFamily:FONT}}>
-          {n}w / {safeMax}w ({arcPct}%)
+        {activeMeta.legend.map(l => (
+          <span key={l.label} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: l.color }} />
+            <span style={{ color: T.textMuted, fontSize: 16, fontFamily: FONT }}>{l.label}</span>
+          </span>
+        ))}
+        <span style={{
+          marginLeft: "auto", display: "flex", alignItems: "center", gap: 6,
+          color: T.textFaint, fontSize: 15, fontFamily: FONT,
+        }}>
+          <span style={{
+            display: "inline-block", width: 36, height: 6, borderRadius: 3,
+            background: T.bgInset, overflow: "hidden", position: "relative",
+          }}>
+            <span style={{
+              position: "absolute", left: 0, top: 0, height: "100%",
+              width: `${arcPct}%`, background: activeMeta.accent, borderRadius: 3, opacity: 0.7,
+            }}/>
+          </span>
+          <span>{n}wk / {safeMax}wk max ({arcPct}%)</span>
         </span>
       </div>
       <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",minHeight:0}}>
@@ -558,7 +643,7 @@ function CompareGlyph({weeklySnap,surgeonSnap,totalHCP,selectedWeek,onSelectWeek
           <path d={oPath} fill="none" stroke={accent} strokeWidth={6} opacity={.12} filter="url(#cGlw)"/>
           {oPts.map((p,i)=>{if(i===0)return null;const prev=oPts[i-1];return<line key={i} x1={prev.x} y1={prev.y} x2={p.x} y2={p.y} stroke={p.color} strokeWidth={2} strokeLinecap="round"/>;}) }
           <path d={oPath} fill="none" stroke="rgba(0,0,0,.06)" strokeWidth={.8}/>
-          {hovIdx!==null&&hovIdx>0&&<line x1={oPts[hovIdx-1].x} y1={oPts[hovIdx-1].y} x2={oPts[hovIdx].x} y2={oPts[hovIdx].y} stroke="#0F172A" strokeWidth={2} strokeLinecap="round" opacity={.5}/>}
+          {hovIdx!==null&&hovIdx>0&&<line x1={oPts[hovIdx-1].x} y1={oPts[hovIdx-1].y} x2={oPts[hovIdx].x} y2={oPts[hovIdx].y} stroke="#0F172A" strokeWidth={2} strokeLinecap="round" opacity={.5}/>} 
           {(()=>{const s=polarToCart(CX,CY,BASE_R,0);const l=polarToCart(CX,CY,BASE_R+142,0);return(<g>
             <line x1={s.x} y1={s.y} x2={l.x} y2={l.y} stroke="#4d5662" strokeWidth={1} strokeDasharray="4,4"/>
             <text x={l.x} y={l.y} textAnchor="middle" fill="#4d5662" fontSize={10} fontFamily={FONT}>week 0</text>
@@ -647,7 +732,83 @@ function CompareView({
 }) {
   const colARef = useRef<HTMLDivElement>(null);
   const colBRef = useRef<HTMLDivElement>(null);
+  const weekDetailARef = useRef<HTMLDivElement>(null);
+  const weekDetailBRef = useRef<HTMLDivElement>(null);
+  const hcpSectionARef = useRef<HTMLDivElement>(null);
+  const hcpSectionBRef = useRef<HTMLDivElement>(null);
   const syncing  = useRef(false);
+  const [weekPadA, setWeekPadA] = useState(0);
+  const [weekPadB, setWeekPadB] = useState(0);
+  const [egoPadA, setEgoPadA] = useState(0);
+  const [egoPadB, setEgoPadB] = useState(0);
+
+  useEffect(() => {
+    const syncHcpStart = () => {
+      const hA = weekDetailARef.current?.offsetHeight ?? 0;
+      const hB = weekDetailBRef.current?.offsetHeight ?? 0;
+      if (!hA || !hB) {
+        setWeekPadA(0);
+        setWeekPadB(0);
+        return;
+      }
+      if (hA > hB) {
+        setWeekPadA(0);
+        setWeekPadB(hA - hB);
+      } else {
+        setWeekPadA(hB - hA);
+        setWeekPadB(0);
+      }
+    };
+
+    const ro = typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver(() => syncHcpStart())
+      : null;
+
+    if (ro && weekDetailARef.current) ro.observe(weekDetailARef.current);
+    if (ro && weekDetailBRef.current) ro.observe(weekDetailBRef.current);
+
+    const rafId = requestAnimationFrame(syncHcpStart);
+    window.addEventListener("resize", syncHcpStart);
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", syncHcpStart);
+      ro?.disconnect();
+    };
+  }, [focusId, cmpId, tick, cmpTick, sharedWeek]);
+
+  useEffect(() => {
+    const syncEgoStart = () => {
+      const hA = hcpSectionARef.current?.offsetHeight ?? 0;
+      const hB = hcpSectionBRef.current?.offsetHeight ?? 0;
+      if (!hA || !hB) {
+        setEgoPadA(0);
+        setEgoPadB(0);
+        return;
+      }
+      if (hA > hB) {
+        setEgoPadA(0);
+        setEgoPadB(hA - hB);
+      } else {
+        setEgoPadA(hB - hA);
+        setEgoPadB(0);
+      }
+    };
+
+    const ro = typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver(() => syncEgoStart())
+      : null;
+
+    if (ro && hcpSectionARef.current) ro.observe(hcpSectionARef.current);
+    if (ro && hcpSectionBRef.current) ro.observe(hcpSectionBRef.current);
+
+    const rafId = requestAnimationFrame(syncEgoStart);
+    window.addEventListener("resize", syncEgoStart);
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", syncEgoStart);
+      ro?.disconnect();
+    };
+  }, [focusId, cmpId, tick, cmpTick, sharedWeek]);
 
   const onScrollA = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     if (syncing.current) return;
@@ -697,21 +858,27 @@ function CompareView({
             </div>
 
             {/* Week detail */}
-            {selWeekDataA
-              ? <WeekDetail data={selWeekDataA} color="#2B6CB0" mode={mode} compareMode/>
-              : <div style={{padding:"12px 14px",background:"#fff",border:"2px solid #E2E8F0",
-                  borderRadius:8,color:"#64748B",fontSize:11,fontFamily:FONT,lineHeight:1.6}}>
-                  <strong style={{color:"#2B6CB0"}}>Click any spike</strong> on the radial above — both patients will sync to that week simultaneously.
-                </div>
-            }
+            <div ref={weekDetailARef} style={{flexShrink:0}}>
+              {selWeekDataA
+                ? <WeekDetail data={selWeekDataA} color="#2B6CB0" mode={mode} compareMode/>
+                : <div style={{padding:"12px 14px",background:"#fff",border:"2px solid #E2E8F0",
+                    borderRadius:8,color:"#64748B",fontSize:11,fontFamily:FONT,lineHeight:1.6}}>
+                    <strong style={{color:"#2B6CB0"}}>Click any spike</strong> on the radial above — both patients will sync to that week simultaneously.
+                  </div>
+              }
+            </div>
+
+            {weekPadA > 0 && <div style={{flexShrink:0,height:weekPadA}}/>}
 
             {/* HCP chart */}
-            <div style={{flexShrink:0}}>
+            <div ref={hcpSectionARef} style={{flexShrink:0}}>
               <BlockLabel text={`HCP SPECIALTY BREAKDOWN${sharedWeek!=null?` — Week ${sharedWeek}`:""}`}/>
               <div style={{border:"2px solid #0F172A",borderTop:"none",borderRadius:"0 0 8px 8px",overflow:"hidden"}}>
                 <HCPBarChart key={focusId+tick+(sharedWeek??"all")} selectedWeek={sharedWeek}/>
               </div>
             </div>
+
+            {egoPadA > 0 && <div style={{flexShrink:0,height:egoPadA}}/>}
 
             {/* Ego network */}
             <div style={{flexShrink:0}}>
@@ -743,7 +910,8 @@ function CompareView({
             <div style={{height:"78vh",flexShrink:0}}>
               <CompareGlyph key={cmpId+cmpTick}
                 weeklySnap={cmpSnap} surgeonSnap={cmpSurgSnap} totalHCP={cmpHCPSnap}
-                selectedWeek={sharedWeek} onSelectWeek={onSharedWeek} mode={mode}/>
+                selectedWeek={sharedWeek} onSelectWeek={onSharedWeek}
+                mode={mode} onModeChange={onModeChange}/>
             </div>
 
             {/* Summary stats */}
@@ -755,21 +923,27 @@ function CompareView({
             </div>
 
             {/* Week detail */}
-            {selWeekDataB
-              ? <WeekDetail data={selWeekDataB} color="#6B46C1" mode={mode} compareMode/>
-              : <div style={{padding:"12px 14px",background:"#fff",border:"2px solid #E2E8F0",
-                  borderRadius:8,color:"#64748B",fontSize:11,fontFamily:FONT,lineHeight:1.6}}>
-                  Waiting for week selection — click any spike in either column.
-                </div>
-            }
+            <div ref={weekDetailBRef} style={{flexShrink:0}}>
+              {selWeekDataB
+                ? <WeekDetail data={selWeekDataB} color="#6B46C1" mode={mode} compareMode/>
+                : <div style={{padding:"12px 14px",background:"#fff",border:"2px solid #E2E8F0",
+                    borderRadius:8,color:"#64748B",fontSize:11,fontFamily:FONT,lineHeight:1.6}}>
+                    Waiting for week selection — click any spike in either column.
+                  </div>
+              }
+            </div>
+
+            {weekPadB > 0 && <div style={{flexShrink:0,height:weekPadB}}/>}
 
             {/* HCP chart */}
-            <div style={{flexShrink:0}}>
+            <div ref={hcpSectionBRef} style={{flexShrink:0}}>
               <BlockLabel text={`HCP SPECIALTY BREAKDOWN${sharedWeek!=null?` — Week ${sharedWeek}`:""}`}/>
               <div style={{border:"2px solid #0F172A",borderTop:"none",borderRadius:"0 0 8px 8px",overflow:"hidden"}}>
                 <HCPBarChart key={cmpId+cmpTick+(sharedWeek??"all")} selectedWeek={sharedWeek} data={cmpSnap}/>
               </div>
             </div>
+
+            {egoPadB > 0 && <div style={{flexShrink:0,height:egoPadB}}/>}
 
             {/* Ego network */}
             <div style={{flexShrink:0}}>
@@ -902,6 +1076,7 @@ export default function App(){
   // Has a patient been selected yet?
   const patientSelected = !!focusId;
   const showOverviewDetail = patientSelected && selectionConfirmed;
+  const inOverviewSelectionStage = view==="overview" && !!focusId && !selectionConfirmed;
 
   const handleConfirmSelection = () => {
     if (!focusId) return;
@@ -921,7 +1096,7 @@ export default function App(){
       <div style={{
         flexShrink:0,background:"#FFFFFF",height:52,
         display:"flex",alignItems:"center",padding:"0 20px",gap:12,
-        boxShadow:"0 1px 6px rgba(15,23,42,.12)",zIndex:100,
+        boxShadow:inOverviewSelectionStage?"none":"0 1px 6px rgba(15,23,42,.12)",zIndex:100,
       }}>
         {/* Navigation buttons — compare mode */}
         {(view==="compare"||view==="whatif")&&(
@@ -962,18 +1137,22 @@ export default function App(){
         )}
 
         {/* Patient chips — right side */}
-        <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
+        <div style={{
+          marginLeft:"auto",display:"flex",gap:8,alignItems:"center",
+          transform:inOverviewSelectionStage?"translateY(6px)":"none",
+        }}>
           {view==="overview" && focusId && !selectionConfirmed && (
             <button onClick={handleConfirmSelection} style={{
-              padding:"7px 14px",borderRadius:6,cursor:"pointer",
-              background:"#0F172A",
-              border:"2px solid #0F172A",
-              color:"#fff",fontSize:11,fontFamily:FONT,fontWeight:800,letterSpacing:.8,
+              padding:"10px 20px",borderRadius:8,cursor:"pointer",
+              background:cmpId?"linear-gradient(90deg, #2B6CB0 0%, #6B46C1 100%)":"#2B6CB0",
+              border:cmpId?"2px solid #4C51BF":"2px solid #2B6CB0",
+              color:"#fff",fontSize:13,fontFamily:FONT,fontWeight:900,letterSpacing:1,
+              boxShadow:cmpId?"0 2px 10px rgba(76,81,191,.28)":"0 2px 10px rgba(43,108,176,.28)",
             }}>
               {cmpId ? "CONFIRM COMPARISON VIEW →" : "CONFIRM PATIENT VIEW →"}
             </button>
           )}
-          {focusPt&&<PatientBadge pt={focusPt} label="A" color="#2B6CB0"/>}
+          {focusPt&&<PatientBadge pt={focusPt} label="A" color="#2B6CB0" emphasize={inOverviewSelectionStage}/>}
           {cmpPt&&<PatientBadge pt={cmpPt} label="B" color="#6B46C1" onRemove={handleClearCompare}/>}
         </div>
       </div>
@@ -1359,8 +1538,8 @@ const yRange = Math.max(yMax - yMin, minSpan);
               <div style={{display:"flex",gap:20,alignItems:"flex-start"}}>
 
                 {/* LEFT: Feature browser — wider */}
-                <div style={{width:400,flexShrink:0,display:"flex",flexDirection:"column",gap:8}}>
-                  <div style={{color:"#0F172A",fontSize:18,fontWeight:700,letterSpacing:1,fontFamily:FONT}}>
+                <div style={{width:600,flexShrink:0,display:"flex",flexDirection:"column",gap:10}}>
+                  <div style={{color:"#0F172A",fontSize:22,fontWeight:700,letterSpacing:1,fontFamily:FONT}}>
                     SURROGATE FEATURE IMPORTANCE
                   </div>
                   <div style={{color:"#1E293B",fontSize:15,fontFamily:FONT,fontWeight:600,marginBottom:4}}>
@@ -1378,15 +1557,15 @@ const yRange = Math.max(yMax - yMin, minSpan);
                           borderBottom:open?"2px solid #E2E8F0":"none",
                         }}>
                           <div style={{width:12,height:12,borderRadius:"50%",background:grp.color,flexShrink:0}}/>
-                          <span style={{color:"#0F172A",fontSize:16,fontWeight:400,fontFamily:FONT,flex:1}}>{grpName}</span>
+                          <span style={{color:"#0F172A",fontSize:18,fontWeight:500,fontFamily:FONT,flex:1}}>{grpName}</span>
                           <div style={{width:70,height:6,background:"#F1F5F9",borderRadius:3,overflow:"hidden"}}>
                             <div style={{height:"100%",borderRadius:3,background:grp.color,
                               width:`${((grp.totalImportance/groups[0][1].totalImportance)*100).toFixed(1)}%`}}/>
                           </div>
-                          <span style={{color:"#0F172A",fontSize:14,fontWeight:400,fontFamily:FONT,minWidth:50,textAlign:"right"}}>
+                          <span style={{color:"#0F172A",fontSize:16,fontWeight:500,fontFamily:FONT,minWidth:58,textAlign:"right"}}>
                             {grp.totalImportance.toFixed(3)}
                           </span>
-                          <span style={{color:"#64748B",fontSize:14,fontWeight:600}}>{open?"▴":"▾"}</span>
+                          <span style={{color:"#64748B",fontSize:16,fontWeight:700}}>{open?"▴":"▾"}</span>
                         </div>
                         {open&&grp.features.map(feat=>{
                           const isSel=wiFeature===feat.feature;
@@ -1398,20 +1577,20 @@ const yRange = Math.max(yMax - yMin, minSpan);
                                 cursor:"pointer",borderBottom:"1px solid #F1F5F9",
                                 background:isSel?`${grp.color}14`:"transparent",transition:"background .1s"}}>
                               <div style={{flex:1,minWidth:0}}>
-                                <div style={{color:isSel?"#090e18":"#0c1119",fontSize:14,fontFamily:FONT,
+                                <div style={{color:isSel?"#090e18":"#0c1119",fontSize:16,fontFamily:FONT,
                                   fontWeight:450,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                                   {feat.displayLabel}
                                 </div>
-                                <div style={{color:"#4f6077",fontSize:13,fontFamily:FONT,fontWeight:600}}>
+                                <div style={{color:"#4f6077",fontSize:14,fontFamily:FONT,fontWeight:600}}>
                                   ×{feat.weekCount}w · val̄={feat.avgValue.toFixed(1)}
                                 </div>
                               </div>
                               <div style={{width:60,height:6,background:"#F1F5F9",borderRadius:3,overflow:"hidden",flexShrink:0}}>
                                 <div style={{height:"100%",borderRadius:3,background:grp.color,width:`${barPct}%`}}/>
                               </div>
-                              <span style={{color:"#0F172A",fontSize:14,fontWeight:400,fontFamily:FONT,
-                                minWidth:48,textAlign:"right"}}>{feat.importance.toFixed(3)}</span>
-                              {isSel&&<span style={{color:grp.color,fontSize:14,fontWeight:800}}>✓</span>}
+                              <span style={{color:"#0F172A",fontSize:16,fontWeight:500,fontFamily:FONT,
+                                minWidth:56,textAlign:"right"}}>{feat.importance.toFixed(3)}</span>
+                              {isSel&&<span style={{color:grp.color,fontSize:16,fontWeight:800}}>✓</span>}
                             </div>
                           );
                         })}
@@ -1436,7 +1615,7 @@ const yRange = Math.max(yMax - yMin, minSpan);
                       <div style={{color:"#D69E2E",fontSize:44,fontWeight:800,fontFamily:FONT,lineHeight:1}}>
                         {(origEnd*100).toFixed(1)}%
                       </div>
-                      <div style={{color:"#475569",fontSize:14,fontWeight:600,fontFamily:FONT,marginTop:6}}>
+                      <div style={{color:"#475569",fontSize:16,fontWeight:600,fontFamily:FONT,marginTop:6}}>
                         {effectivePatientId} · original trajectory
                       </div>
                     </div>
@@ -1447,7 +1626,7 @@ const yRange = Math.max(yMax - yMin, minSpan);
                       <div style={{color:wiFeature?(isGood?"#38A169":"#E53E3E"):"#94A3B8",fontSize:44,fontWeight:800,fontFamily:FONT,lineHeight:1}}>
                         {wiFeature?(pertEnd*100).toFixed(1)+"%" : "—"}
                       </div>
-                      <div style={{color:"#475569",fontSize:14,fontWeight:600,fontFamily:FONT,marginTop:6}}>
+                      <div style={{color:"#475569",fontSize:16,fontWeight:600,fontFamily:FONT,marginTop:6}}>
                         {wiFeature?`after ↓${wiPerturbPct}% ${selFeat?.displayLabel??""}`:"select a feature"}
                       </div>
                     </div>
@@ -1456,7 +1635,7 @@ const yRange = Math.max(yMax - yMin, minSpan);
                       <div style={{color:wiFeature?(isGood?"#38A169":"#E53E3E"):"#94A3B8",fontSize:44,fontWeight:800,fontFamily:FONT,lineHeight:1}}>
                         {wiFeature?(delta>=0?"+":"")+(delta*100).toFixed(2)+"%" : "—"}
                       </div>
-                      <div style={{color:"#475569",fontSize:14,fontWeight:600,fontFamily:FONT,marginTop:6}}>
+                      <div style={{color:"#475569",fontSize:16,fontWeight:600,fontFamily:FONT,marginTop:6}}>
                         {wiFeature?(isGood?"risk reduction ↓":"risk increase ↑"):"awaiting feature selection"}
                       </div>
                     </div>
@@ -1480,7 +1659,7 @@ const yRange = Math.max(yMax - yMin, minSpan);
 
                       {/* Chart header + legend */}
                       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,flexWrap:"wrap"}}>
-                        <span style={{color:"#0F172A",fontSize:12,fontWeight:800,letterSpacing:.8,fontFamily:FONT}}>
+                        <span style={{color:"#0F172A",fontSize:15,fontWeight:800,letterSpacing:.8,fontFamily:FONT}}>
                           RISK TRAJECTORY
                         </span>
                         {/* Legend */}
@@ -1489,23 +1668,23 @@ const yRange = Math.max(yMax - yMin, minSpan);
                             <svg width={28} height={8}>
                               <line x1={0} y1={4} x2={28} y2={4} stroke="#94A3B8" strokeWidth={2} strokeDasharray="5,3"/>
                             </svg>
-                            <span style={{color:"#334155",fontSize:12,fontWeight:600,fontFamily:FONT}}>Original predicted risk</span>
+                            <span style={{color:"#334155",fontSize:15,fontWeight:600,fontFamily:FONT}}>Original predicted risk</span>
                           </div>
                           <div style={{display:"flex",alignItems:"center",gap:5}}>
                             <svg width={28} height={8}>
                               <line x1={0} y1={4} x2={28} y2={4} stroke={isGood?"#38A169":"#E53E3E"} strokeWidth={2.5}/>
                             </svg>
-                            <span style={{color:"#334155",fontSize:12,fontWeight:600,fontFamily:FONT}}>
+                            <span style={{color:"#334155",fontSize:15,fontWeight:600,fontFamily:FONT}}>
                               Projected ({isGood?"reduced":"increased"}) risk
                             </span>
                           </div>
                           <div style={{display:"flex",alignItems:"center",gap:5}}>
                             <div style={{width:12,height:12,background:"#D69E2E",borderRadius:2}}/>
-                            <span style={{color:"#334155",fontSize:12,fontWeight:600,fontFamily:FONT}}>Center point</span>
+                            <span style={{color:"#334155",fontSize:15,fontWeight:600,fontFamily:FONT}}>Center point</span>
                           </div>
                         </div>
                         <span style={{marginLeft:"auto",color:isGood?"#38A169":"#E53E3E",
-                          fontSize:12,fontWeight:800,fontFamily:FONT}}>
+                          fontSize:18,fontWeight:800,fontFamily:FONT}}>
                           {isGood?"↓":"↑"} end risk {isGood?"reduced by":"increased by"}{" "}
                           <strong>{Math.abs(delta*100).toFixed(2)}%</strong>
                         </span>
@@ -1701,7 +1880,7 @@ const yRange = Math.max(yMax - yMin, minSpan);
                         <div style={{marginTop:12,padding:"14px 18px",
                           background:isGood?"#F0FFF4":"#FFF5F5",
                           border:`2px solid ${isGood?"#38A16933":"#E53E3E33"}`,borderRadius:10,
-                          color:"#334155",fontSize:18,fontFamily:FONT,fontWeight:700,lineHeight:1.65}}>
+                          color:"#334155",fontSize:20,fontFamily:FONT,fontWeight:700,lineHeight:1.65}}>
                           Reducing <strong style={{color:selCol}}>{selFeat.displayLabel}</strong> by{" "}
                           <strong>{wiPerturbPct}%</strong> from week{" "}
                           <strong style={{color:"#D69E2E"}}>W{wiData[wiCenterIdx]?.week??wiCenterIdx}</strong> onward{" "}

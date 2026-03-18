@@ -26,7 +26,7 @@ import type { MergedEgoRecord } from "../realData";
 import { T } from "../theme";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const W = 520, H = 440, CX = W / 2, CY = H / 2;
+const W = 520, H = 400, VIEW_H = 1200, CX = W / 2, CY = H / 2;
 const FONT = "'Space Mono', monospace";
 
 // ── LEVEL1_GROUPS derived from single source of truth in realdata.ts ──────────
@@ -425,7 +425,7 @@ interface NetworkSVGProps {
 function NetworkSVG({ nodes, edges, cacheKey, isCumulative, maxEdgeFreq, selectedHCP, onSelectHCP, onHover }: NetworkSVGProps) {
   if (!nodes.length) {
     return (
-      <div style={{ height: H, display: "flex", flexDirection: "column", alignItems: "center",
+      <div style={{ height: VIEW_H, display: "flex", flexDirection: "column", alignItems: "center",
         justifyContent: "center", background: "#f7f9fc", borderRadius: 10,
         border: "1.5px dashed #cbd5e1", gap: 10 }}>
         <div style={{ fontSize: 28, opacity: 0.3 }}>◯</div>
@@ -459,7 +459,7 @@ function NetworkSVG({ nodes, edges, cacheKey, isCumulative, maxEdgeFreq, selecte
   return (
     <svg
       viewBox={`${minX.toFixed(0)} ${minY.toFixed(0)} ${vbW.toFixed(0)} ${vbH.toFixed(0)}`}
-      style={{ width: "100%", display: "block", borderRadius: 10, background: "#f7f9fc" }}
+      style={{ width: "100%", height: VIEW_H, display: "block", borderRadius: 10, background: "#f7f9fc" }}
     >
       {/* Edges */}
       {edges.map((e, ei) => {
@@ -563,7 +563,7 @@ interface SoloHCP { specialty: string; providerType: string; clinicianTitle?: st
 function SoloNetworkSVG({ hcps, patientId, weekNum }: { hcps: SoloHCP[]; patientId: string; weekNum: number }) {
   if (!hcps.length) {
     return (
-      <div style={{ height: H, display: "flex", flexDirection: "column", alignItems: "center",
+      <div style={{ height: VIEW_H, display: "flex", flexDirection: "column", alignItems: "center",
         justifyContent: "center", background: "#f7f9fc", borderRadius: 10,
         border: "1.5px dashed #cbd5e1", gap: 10 }}>
         <div style={{ fontSize: 28, opacity: 0.3 }}>◯</div>
@@ -586,7 +586,7 @@ function SoloNetworkSVG({ hcps, patientId, weekNum }: { hcps: SoloHCP[]; patient
     seen.add(key); return true;
   });
 
-  const svgW = 500, svgH = H;
+  const svgW = 500, svgH = VIEW_H;
   const cx = svgW / 2, cy = svgH / 2;
   const R  = Math.min(cx, cy) * 0.72;
   const n  = dedup.length;
@@ -912,15 +912,15 @@ export function EgoNetwork({ patientId, accentColor = "#2B6CB0", initialWeek }: 
     return { renderNodes: [...connectedNodes, ...soloNodes], renderEdges: edges, renderCacheKey: `${patientId}_week${currentWeek}`, isCumulative: false };
   }, [egoMode, currentWeek, currentSnap, cumulNet, patientId, cumulPlayIdx, allWeeks, weeklySnapshots, soloHCPs]);
 
-  // ── Legend groups for current week ──
+  // ── Legend groups for the currently rendered view (weekly/cumulative) ──
   const legendGroupKeys = useMemo(() => {
     const keys = new Set<string>();
-    const srcNodes = currentSnap?.nodes?.length
-      ? (currentSnap.nodes as Record<string,unknown>[]).map(normaliseNode)
-      : soloHCPs.map((h, i) => normaliseNode({ id: `s${i}`, specialty: h.specialty, providerType: h.providerType, clinicianTitle: h.clinicianTitle }));
-    srcNodes.forEach(n => classifyNode(n).filter(g => g.label !== "Other").forEach(g => keys.add(g.label)));
+    renderNodes.forEach(n => {
+      const groups = n.groupMatches?.length ? n.groupMatches : classifyNode(n);
+      groups.filter(g => g.label !== "Other").forEach(g => keys.add(g.label));
+    });
     return keys;
-  }, [currentSnap, soloHCPs]);
+  }, [renderNodes]);
 
   // ── Tooltip handler ──
   const handleHover = useCallback((node: Node | null, clientX: number, clientY: number) => {
@@ -1057,9 +1057,9 @@ export function EgoNetwork({ patientId, accentColor = "#2B6CB0", initialWeek }: 
       )}
 
       {/* ── NETWORK SVG ── */}
-      <div style={{ flexShrink: 0 }}>
+      <div style={{ flexShrink: 0, height: VIEW_H }}>
         {isWeeklyActive && ((!currentSnap?.nodes?.length && soloHCPs.length > 0) || (renderEdges.length === 0 && soloHCPs.length > 0))
-          ? <div style={{ height: H, display: "flex", flexDirection: "column", alignItems: "center",
+          ? <div style={{ height: VIEW_H, display: "flex", flexDirection: "column", alignItems: "center",
               justifyContent: "center", background: "#f7f9fc", borderRadius: 10,
               border: "1.5px dashed #cbd5e1", gap: 10 }}>
               <div style={{ fontSize: 28, opacity: 0.3 }}>◯</div>

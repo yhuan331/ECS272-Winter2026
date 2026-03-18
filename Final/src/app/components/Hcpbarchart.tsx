@@ -71,10 +71,10 @@ export function HCPBarChart({ selectedWeek, data }: Props) {
           HCP SPECIALTY MIX
         </div>
         {selectedWeek !== null
-          ? <span style={{ color: "#D69E2E", fontSize: 9, fontWeight: 700, letterSpacing: 1 }}>WEEK {selectedWeek}</span>
-          : <span style={{ color: T.textMuted, fontSize: 9 }}>ALL WEEKS</span>
+          ? <span style={{ color: "#D69E2E", fontSize: 12, fontWeight: 700, letterSpacing: 1 }}>WEEK {selectedWeek}</span>
+          : <span style={{ color: T.textMuted, fontSize: 12 }}>ALL WEEKS</span>
         }
-        <span style={{ marginLeft: "auto", color: T.textFaint, fontSize: 9 }}>
+        <span style={{ marginLeft: "auto", color: T.textFaint, fontSize: 13 }}>
           {totalHCPs} total · {tree.length} groups · click to expand
         </span>
       </div>
@@ -115,7 +115,7 @@ export function HCPBarChart({ selectedWeek, data }: Props) {
                 <div style={{
                   width: 170, flexShrink: 0,
                   color: isHov ? group.color : T.textSecondary,
-                  fontSize: 15, fontWeight: isHov ? 700 : 400,
+                  fontSize: 18, fontWeight: isHov ? 700 : 400,
                   whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                   transition: "color 0.12s",
                 }}>
@@ -139,10 +139,10 @@ export function HCPBarChart({ selectedWeek, data }: Props) {
                   display: "flex", gap: 8, flexShrink: 0, alignItems: "center",
                   minWidth: 80, justifyContent: "flex-end",
                 }}>
-                  <span style={{ color: group.color, fontSize: 14, fontWeight: 700 }}>
+                  <span style={{ color: group.color, fontSize: 16, fontWeight: 700 }}>
                     {group.value}
                   </span>
-                  <span style={{ color: T.textFaint, fontSize: 9 }}>
+                  <span style={{ color: T.textFaint, fontSize: 14 }}>
                     {sharePct}%
                   </span>
                   <span style={{
@@ -171,7 +171,7 @@ export function HCPBarChart({ selectedWeek, data }: Props) {
                       }}>
                         <div style={{
                           width: 158, flexShrink: 0,
-                          color: T.textSecondary, fontSize: 14,
+                          color: T.textSecondary, fontSize: 16,
                           whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                         }}>
                           {child.name}
@@ -182,7 +182,7 @@ export function HCPBarChart({ selectedWeek, data }: Props) {
                             background: group.color, opacity: 0.45, borderRadius: 3,
                           }} />
                         </div>
-                        <span style={{ color: group.color, fontSize: 13, minWidth: 20, textAlign: "right" }}>
+                        <span style={{ color: group.color, fontSize: 16, minWidth: 20, textAlign: "right" }}>
                           {child.value}
                         </span>
                       </div>
@@ -217,7 +217,7 @@ export function HCPBarChart({ selectedWeek, data }: Props) {
         </div>
         <div style={{
           display: "flex", justifyContent: "space-between",
-          marginTop: 3, color: T.textFaint, fontSize: 8,
+          marginTop: 3, color: T.textFaint, fontSize: 12,
         }}>
           <span>specialty distribution</span>
           {hoveredGroup && (
